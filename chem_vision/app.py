@@ -358,6 +358,39 @@ class App:
         return win
 
 
+def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
+    """Nhận diện một ảnh có sẵn bằng Gemini và in kết quả (để thử khi chưa có camera)."""
+    import json
+    import cv2
+    from .geometry import annotate
+    from .recognizer import GeminiRecognizer, load_api_key
+
+    frame = cv2.imread(path)
+    if frame is None:
+        print(f"Không đọc được ảnh: {path}")
+        return 1
+    key = load_api_key(os.path.join(here, "chem_vision"), here)
+    if not key:
+        print("Chưa có khóa API: điền GEMINI_API_KEY vào chem_vision/.env")
+        return 1
+    rec = GeminiRecognizer(key, link_mode=link_mode)
+    try:
+        raw = rec.recognize(frame)
+    except GaveUp as err:
+        print(f"Không kết nối được dịch vụ AI: {err.last}")
+        return 1
+    data = json.loads(raw)
+    analysis = analyze(raw)
+    print(f"Model: {rec.last_model} | liên kết: {data.get('links_source', 'ai')}")
+    print("Thẻ:", ", ".join(f"{c['id']}={c['symbol']}" for c in data.get("cards", [])))
+    print("Liên kết:", ", ".join(f"{c['a']}-{c['b']}" for c in data.get("connections", [])) or "(không có)")
+    print("Kết quả:", analysis.message)
+    if debug_out:
+        cv2.imwrite(debug_out, annotate(frame, data))
+        print("Đã lưu ảnh kiểm tra:", debug_out)
+    return 0
+
+
 def main(argv=None):
     import argparse
     from .recognizer import GeminiRecognizer, load_api_key
@@ -366,8 +399,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="CHEM VISION")
     ap.add_argument("--demo", action="store_true", help="chạy thử không cần camera và khóa API")
     ap.add_argument("--camera", type=int, default=0, help="chỉ số camera (mặc định 0)")
+    ap.add_argument("--image", help="nhận diện một ảnh có sẵn, in kết quả ra màn hình, không mở giao diện")
+    ap.add_argument("--debug-out", help="với --image: lưu ảnh đã vẽ khung bao, kí hiệu và liên kết")
+    ap.add_argument("--ai-links", action="store_true", help="với --image: dùng liên kết do AI đoán thay cho hình học")
     args = ap.parse_args(argv)
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if args.image:
+        return run_image(args.image, here, args.debug_out, "ai" if args.ai_links else "geometry")
 
     camera, recognizer, mode, note = None, None, "", ""
     if not args.demo:
@@ -379,7 +417,7 @@ def main(argv=None):
                 note = "Không mở được camera"
         except Exception as err:
             note = f"Không dùng được OpenCV ({err})"
-        key = load_api_key(here)
+        key = load_api_key(os.path.join(here, "chem_vision"), here)
         if camera and key:
             try:
                 recognizer, mode = GeminiRecognizer(key), "Gemini + camera"
@@ -399,4 +437,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

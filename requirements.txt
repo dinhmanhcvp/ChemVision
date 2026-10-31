@@ -1,6 +1,6 @@
 opencv-python
 pillow
 numpy
-google-genai
+google-genai>=1.0
 gTTS
 pygame

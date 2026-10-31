@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from chem_vision.app import App, BlankCamera
 from chem_vision.core import analyze
-from chem_vision.recognizer import DemoRecognizer, GeminiRecognizer, SCENARIOS, create_prompt, frame_to_jpeg
+from chem_vision.recognizer import DemoRecognizer, GeminiRecognizer, MODELS, SCENARIOS, create_prompt, frame_to_jpeg
 from chem_vision.retry import ApiError, GaveUp
 
 
@@ -159,8 +159,8 @@ class Gemini(unittest.TestCase):
         slept = []
         rec = GeminiRecognizer("k", client=fake, sleep=slept.append)
         self.assertEqual(analyze(rec.recognize(self.frame())).matches(), ["CO2"])
-        self.assertEqual([c[0] for c in fake.calls], ["gemini-2.5-flash"] * 3 + ["gemini-2.5-flash-lite"])
-        self.assertEqual(rec.last_model, "gemini-2.5-flash-lite")
+        self.assertEqual([c[0] for c in fake.calls], [MODELS[0]] * 3 + [MODELS[1]])
+        self.assertEqual(rec.last_model, MODELS[1])
         self.assertEqual(slept, [2.0, 4.0])
 
     def test_auth_error_stops(self):

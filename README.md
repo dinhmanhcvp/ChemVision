@@ -12,8 +12,9 @@ cạnh (prompt không chứa công thức). Việc xác định chất do thuậ
 pip install -r requirements.txt
 ```
 
-Khóa API Gemini: đặt biến môi trường `GEMINI_API_KEY` hoặc ghi khóa vào tệp `api_key.txt` cạnh thư mục
-`chem_vision` (không đưa tệp này lên nơi công khai).
+Khóa API Gemini: sao chép `chem_vision/.env.example` thành `chem_vision/.env` rồi điền `GEMINI_API_KEY=...`
+(tệp `.env` nằm trong `.gitignore`, không bị đẩy lên GitHub). Thứ tự tìm khóa: biến môi trường `GEMINI_API_KEY`,
+rồi `.env` và `api_key.txt` trong thư mục `chem_vision`, rồi trong thư mục gốc dự án.
 
 ## Chạy
 
@@ -22,6 +23,8 @@ Khóa API Gemini: đặt biến môi trường `GEMINI_API_KEY` hoặc ghi khóa
 | `python -m chem_vision` | Camera + Gemini (cần camera và khóa API) |
 | `python -m chem_vision --demo` | Chế độ thử: không cần camera, mạng hay khóa API; chọn tình huống giả lập |
 | `python -m chem_vision --camera 1` | Dùng camera thứ hai |
+| `python -m chem_vision --image anh.jpg --debug-out kq.png` | Nhận diện một ảnh có sẵn (không cần camera), lưu ảnh vẽ khung thẻ và liên kết để kiểm tra bằng mắt |
+| `python -m chem_vision --image anh.jpg --ai-links` | Như trên nhưng dùng liên kết do AI đoán (để so sánh với hình học) |
 | `chay_chem_vision.bat` | Chạy nhanh trên Windows |
 
 Thiếu camera hoặc khóa API thì ứng dụng tự chuyển sang chế độ thử và ghi lý do ở góc phải.
@@ -29,7 +32,8 @@ Thiếu camera hoặc khóa API thì ứng dụng tự chuyển sang chế độ
 ## Tính năng
 
 - Camera Live, nút KIỂM TRA (chỉ một khung hình được gửi đi, không ghi ảnh ra đĩa)
-- Nhận diện thẻ và liên kết, đối sánh với 31 chất, phân biệt: khớp, sai liên kết, ghép dở, không nhận ra
+- Nhận diện thẻ: Gemini đọc kí hiệu và khung bao; **liên kết giữa các thẻ được tính bằng hình học (OpenCV)**, không để AI đoán; loại thẻ bị liệt kê hai lần
+- Đối sánh với 31 chất, phân biệt: khớp, sai liên kết, ghép dở, không nhận ra
 - Gợi ý "Có phải bạn muốn ghép …?" kèm nút Đúng / Không phải, nêu thẻ thiếu hoặc thừa
 - Tách cụm thẻ rời nhau, yêu cầu chụp lại khi ảnh chưa rõ
 - Đọc kết quả bằng giọng nói tiếng Việt (gTTS + pygame)
@@ -43,7 +47,7 @@ Thiếu camera hoặc khóa API thì ứng dụng tự chuyển sang chế độ
 python -m unittest discover -s chem_vision/tests -t .
 ```
 
-50 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả). Kiểm thử giao diện cần màn hình.
+62 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả). Kiểm thử giao diện cần màn hình.
 
 ## Cấu trúc
 
@@ -56,7 +60,13 @@ python -m unittest discover -s chem_vision/tests -t .
 | `features.py` | chế độ thử thách, nhật ký lớp học |
 | `app.py` | giao diện Tkinter |
 
-## Chưa kiểm chứng
+## Đã và chưa kiểm chứng
 
-Chưa chạy với camera, thẻ và Gemini thật; chưa nghe thử giọng đọc bằng gTTS thật. Các tên model
-(`gemini-2.5-flash`, `gemini-2.5-flash-lite`) nằm ở `recognizer.MODELS`, đổi theo tài khoản của bạn.
+Đã thử với Gemini thật bằng 2 ảnh thẻ nguyên tố (thẻ chữ nhật, không phải thẻ lục giác ghép phân tử): đọc đúng kí hiệu
+thẻ nhìn rõ, khung bao chuẩn, mỗi ảnh xử lý trong khoảng 4-6 giây. Chưa chạy với camera và bộ thẻ lục giác thật; chưa đo
+độ chính xác trên bộ ảnh có đáp án.
+
+Model (`recognizer.MODELS`): `gemini-flash-lite-latest` (chính, 3-4 giây/ảnh) và `gemini-2.5-flash` (dự phòng). Khi thử,
+`gemini-2.5-flash-lite` báo 404 (không còn dùng được) và `gemini-flash-latest` mất 55-180 giây/ảnh nên không dùng. Tên model
+thay đổi theo thời gian: nếu gặp lỗi 404, đổi tên trong `MODELS` (liệt kê model dùng được bằng API `v1beta/models`).
+Tùy chọn tắt suy luận mở rộng (`THINKING_BUDGET`) chỉ có tác dụng với `google-genai` từ bản 1.x trở lên.

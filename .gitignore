@@ -3,3 +3,4 @@ __pycache__/
 api_key.txt
 nhat_ky*.csv
 *.mp3
+.env
