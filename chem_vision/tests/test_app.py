@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from chem_vision.app import App, BlankCamera
 from chem_vision.core import analyze
-from chem_vision.recognizer import DemoRecognizer, GeminiRecognizer, MODELS, SCENARIOS, create_prompt, frame_to_jpeg
+from chem_vision.recognizer import DemoRecognizer, SCENARIOS
 from chem_vision.retry import ApiError, GaveUp
 
 
@@ -111,69 +111,6 @@ class Gui(unittest.TestCase):
         app.check()
         self.assertIn("Không kết nối được dịch vụ AI", text_of(app))
         self.assertEqual(app.check_btn["state"], "normal")
-
-
-class FakeGenai:
-    """Máy khách Gemini giả: trả lỗi theo kịch bản rồi trả JSON."""
-    def __init__(self, outcomes):
-        self.outcomes, self.calls = list(outcomes), []
-        self.models = self
-
-    def generate_content(self, model, contents, config):
-        self.calls.append((model, config))
-        o = self.outcomes.pop(0)
-        if isinstance(o, Exception):
-            raise o
-        return type("R", (), {"text": o})()
-
-
-class CodeError(Exception):
-    def __init__(self, code):
-        self.code = code
-
-
-class Gemini(unittest.TestCase):
-    def frame(self):
-        import numpy as np
-        return np.full((60, 80, 3), 200, dtype="uint8")
-
-    def test_prompt_has_no_formula(self):
-        p = create_prompt()
-        for formula in ("H2O", "CO2", "NaCl", "CH4", "H2SO4"):
-            self.assertNotIn(formula, p)
-        self.assertIn("mỗi thẻ là một nguyên tử", p)
-
-    def test_jpeg_in_memory(self):
-        self.assertTrue(frame_to_jpeg(self.frame()).startswith(b"\xff\xd8"))
-
-    def test_success_uses_json_config(self):
-        fake = FakeGenai([SCENARIOS["Nước, ghép đúng"]])
-        rec = GeminiRecognizer("k", client=fake)
-        self.assertEqual(analyze(rec.recognize(self.frame())).matches(), ["H2O"])
-        cfg = fake.calls[0][1]
-        self.assertEqual(cfg.temperature, 0.1)
-        self.assertEqual(cfg.response_mime_type, "application/json")
-
-    def test_retry_then_fallback_model(self):
-        fake = FakeGenai([CodeError(503)] * 3 + [SCENARIOS["CO2, ghép đúng"]])
-        slept = []
-        rec = GeminiRecognizer("k", client=fake, sleep=slept.append)
-        self.assertEqual(analyze(rec.recognize(self.frame())).matches(), ["CO2"])
-        self.assertEqual([c[0] for c in fake.calls], [MODELS[0]] * 3 + [MODELS[1]])
-        self.assertEqual(rec.last_model, MODELS[1])
-        self.assertEqual(slept, [2.0, 4.0])
-
-    def test_auth_error_stops(self):
-        fake = FakeGenai([CodeError(401)])
-        with self.assertRaises(GaveUp):
-            GeminiRecognizer("k", client=fake).recognize(self.frame())
-        self.assertEqual(len(fake.calls), 1)
-
-    def test_network_error_is_transient(self):
-        fake = FakeGenai([ConnectionError("mất mạng"), SCENARIOS["Nước, ghép đúng"]])
-        rec = GeminiRecognizer("k", client=fake, sleep=lambda s: None)
-        self.assertTrue(rec.recognize(self.frame()))
-        self.assertEqual(len(fake.calls), 2)
 
 
 if __name__ == "__main__":

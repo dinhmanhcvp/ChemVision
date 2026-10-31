@@ -11,7 +11,7 @@ import csv
 import os
 import time
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .core import (BY_KEY, Analysis, ELEMENT_NAMES, card_label, count_phrase,
                    describe_structure)
@@ -43,6 +43,17 @@ class Attempt:
     correct: bool
     message: str
     kind: str          # MATCH_TARGET | MATCH_OTHER | WRONG_BONDS | SUGGEST | UNKNOWN | RECAPTURE | EMPTY
+
+
+def hint_for(key: str, level: int) -> str:
+    """Gợi ý mức 1 (nguyên tố), 2 (số thẻ), 3 (cách nối) cho một chất."""
+    g = BY_KEY[key].graph
+    if level <= 1:
+        names = ", ".join(card_label(s) for s in sorted(set(g.labels)))
+        return f"Gợi ý 1: phân tử gồm các nguyên tố {names}."
+    if level == 2:
+        return f"Gợi ý 2: cần {count_phrase(g.composition())}."
+    return f"Gợi ý 3: cách nối: {describe_structure(g)}."
 
 
 class Challenge:
@@ -104,13 +115,7 @@ class Challenge:
         if t.hints >= MAX_HINTS:
             return "Đã dùng hết 3 gợi ý cho câu này."
         t.hints += 1
-        g = BY_KEY[t.key].graph
-        if t.hints == 1:
-            names = ", ".join(card_label(s) for s in sorted(set(g.labels)))
-            return f"Gợi ý 1: phân tử gồm các nguyên tố {names}."
-        if t.hints == 2:
-            return f"Gợi ý 2: cần {count_phrase(g.composition())}."
-        return f"Gợi ý 3: cách nối: {describe_structure(g)}."
+        return hint_for(t.key, t.hints)
 
     def skip(self) -> None:
         t = self.current
@@ -144,10 +149,10 @@ FIELDS = ["thời gian", "nhóm", "chất mục tiêu", "kết quả", "thẻ th
 class SessionLog:
     """Ghi một dòng cho mỗi lượt kiểm tra hợp lệ. Nhóm là nhãn như "Nhóm 1"; không lưu ảnh."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str | None = None, rows: list[dict] | None = None):
         self.path = path
-        self.rows: list[dict] = []
-        if os.path.exists(path):
+        self.rows: list[dict] = list(rows or [])
+        if path and os.path.exists(path):
             with open(path, newline="", encoding="utf-8-sig") as f:
                 self.rows = list(csv.DictReader(f))
 
@@ -172,6 +177,8 @@ class SessionLog:
             "liên kết sai": bonds,
         }
         self.rows.append(row)
+        if not self.path:               # chạy không có tệp (bản web: nhật ký nằm ở trình duyệt)
+            return row
         new = not os.path.exists(self.path) or os.path.getsize(self.path) == 0
         with open(self.path, "a", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=FIELDS)
@@ -179,6 +186,15 @@ class SessionLog:
                 w.writeheader()
             w.writerow(row)
         return row
+
+    def to_csv(self) -> str:
+        import io
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=FIELDS, extrasaction="ignore", lineterminator="\r\n")
+        w.writeheader()
+        for row in self.rows:
+            w.writerow({k: row.get(k, "") for k in FIELDS})
+        return buf.getvalue()
 
     def stats(self) -> dict:
         per: dict[str, dict] = {}

@@ -1,0 +1,13 @@
+chem_vision/tests
+chem_vision/.env
+chem_vision/demo.py
+chem_vision/app.py
+chem_vision/speech.py
+scripts
+*.docx
+*.md
+requirements-desktop.txt
+chay_chem_vision.bat
+nhat_ky*.csv
+__pycache__
+.env

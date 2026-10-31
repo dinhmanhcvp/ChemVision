@@ -1,6 +1,2 @@
-opencv-python
-pillow
 numpy
-google-genai>=1.0
-gTTS
-pygame
+opencv-python-headless

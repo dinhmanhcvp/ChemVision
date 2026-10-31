@@ -5,16 +5,20 @@ công thức hóa học nào, để AI không bị gợi ý đáp án.
 """
 from __future__ import annotations
 
+import base64
 import io
 import json
 import os
+import urllib.error
+import urllib.request
 
 from .geometry import apply_geometry
 from .retry import ApiError, call_with_retry
 
-# Model chính nhanh (3-4 s/ảnh khi thử), model dự phòng chậm hơn nhưng đã thử chạy tốt.
-# Đã loại gemini-2.5-flash-lite (báo 404, không còn dùng được) và gemini-flash-latest (55-180 s/ảnh).
-MODELS = ("gemini-flash-lite-latest", "gemini-2.5-flash")
+# Khi thử: gemini-2.5-flash với thinkingBudget=0 mất khoảng 2,5 s/ảnh (mặc định 9-40 s); gemini-flash-lite-latest
+# nhanh (3-4 s) nhưng từ chối thinkingBudget. Đã loại gemini-2.5-flash-lite (404, không còn dùng được)
+# và gemini-flash-latest (55-180 s/ảnh).
+MODELS = ("gemini-2.5-flash", "gemini-flash-lite-latest")
 TEMPERATURE = 0.1
 THINKING_BUDGET = 0      # 0: tắt suy luận mở rộng của model 2.5 để nhanh hơn; None: để mặc định
 
@@ -78,65 +82,6 @@ def load_api_key(*folders: str) -> str | None:
     return None
 
 
-class GeminiRecognizer:
-    def __init__(self, api_key: str, models=MODELS, client=None, sleep=None, link_mode: str = "geometry"):
-        if client is None:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-        self.client, self.models, self.sleep, self.link_mode = client, models, sleep, link_mode
-        self.last_model = None
-        self.last_data = None
-
-    def _call(self, jpeg: bytes, model: str) -> str:
-        from google.genai import types
-        try:
-            resp = self.client.models.generate_content(
-                model=model,
-                contents=[types.Part.from_bytes(data=jpeg, mime_type="image/jpeg"), create_prompt()],
-                config=_config(types),
-            )
-        except Exception as err:                      # chuyển mọi lỗi SDK về ApiError
-            code = getattr(err, "code", None) or getattr(err, "status_code", None)
-            if not isinstance(code, int):
-                code = 503                            # lỗi mạng, hết giờ: coi là tạm thời
-            raise ApiError(code, str(err)[:200], _retry_after(err)) from err
-        text = getattr(resp, "text", None)
-        if not text:
-            raise ApiError(503, "AI không trả nội dung")
-        return text
-
-    def recognize(self, frame_bgr) -> str:
-        jpeg = frame_to_jpeg(frame_bgr)
-        kw = {"sleep": self.sleep} if self.sleep else {}
-        text, model, _ = call_with_retry(lambda m: self._call(jpeg, m), self.models, **kw)
-        self.last_model = model
-        if self.link_mode != "geometry":
-            return text
-        from .core import extract_json
-        data = extract_json(text)
-        if data is None:
-            return text
-        self.last_data = apply_geometry(frame_bgr, data)      # liên kết do hình học quyết định
-        return json.dumps(self.last_data, ensure_ascii=False)
-
-
-def _config(types):
-    kw = {"temperature": TEMPERATURE, "response_mime_type": "application/json"}
-    supported = hasattr(types, "ThinkingConfig") and "thinking_config" in types.GenerateContentConfig.model_fields
-    if THINKING_BUDGET is not None and supported:      # thư viện google-genai cũ (< 1.0) chưa có tùy chọn này
-        kw["thinking_config"] = types.ThinkingConfig(thinking_budget=THINKING_BUDGET)
-    return types.GenerateContentConfig(**kw)
-
-
-def _retry_after(err):
-    try:
-        headers = getattr(getattr(err, "response", None), "headers", None) or {}
-        value = headers.get("retry-after") or headers.get("Retry-After")
-        return float(value) if value else None
-    except (TypeError, ValueError):
-        return None
-
-
 # --------------------------------------------------------------------------- giả lập
 def _mol(atoms: str, edges):
     syms = atoms.split()
@@ -166,3 +111,75 @@ class DemoRecognizer:
 
     def recognize(self, frame_bgr=None) -> str:
         return SCENARIOS[self.scenario]
+
+
+# --------------------------------------------------------------------------- bản web
+class GeminiRest:
+    """Gọi Gemini bằng HTTP trực tiếp, không cần thư viện google-genai (dùng cho bản web trên Vercel)."""
+
+    URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    def __init__(self, api_key: str, models=MODELS, timeout: float = 25.0, sleep=None, opener=None,
+                 link_mode: str = "geometry"):
+        self.api_key, self.models, self.timeout, self.sleep, self.link_mode = api_key, models, timeout, sleep, link_mode
+        self.opener = opener or urllib.request.urlopen
+        self.no_thinking: set[str] = set()      # model từ chối thinkingBudget (ví dụ gemini-flash-lite-latest)
+        self.last_model = None
+        self.last_data = None
+
+    def _body(self, jpeg: bytes, thinking: bool) -> dict:
+        cfg = {"temperature": TEMPERATURE, "responseMimeType": "application/json"}
+        if thinking:
+            cfg["thinkingConfig"] = {"thinkingBudget": THINKING_BUDGET}
+        part = {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpeg).decode("ascii")}}
+        return {"contents": [{"parts": [part, {"text": create_prompt()}]}], "generationConfig": cfg}
+
+    def _call(self, jpeg: bytes, model: str) -> str:
+        thinking = THINKING_BUDGET is not None and model not in self.no_thinking
+        req = urllib.request.Request(
+            self.URL.format(model=model), data=json.dumps(self._body(jpeg, thinking)).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key})
+        try:
+            with self.opener(req, timeout=self.timeout) as resp:
+                payload = json.load(resp)
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", "replace")
+            if err.code == 400 and thinking:          # nhiều model chỉ báo INVALID_ARGUMENT chung chung
+                self.no_thinking.add(model)           # nhớ model này không nhận thinkingBudget, thử lại không có
+                return self._call(jpeg, model)
+            raise ApiError(err.code, detail[:200], _header_retry_after(err.headers)) from err
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as err:
+            raise ApiError(503, str(err)[:200]) from err
+        try:
+            parts = payload["candidates"][0]["content"]["parts"]
+            text = "".join(p.get("text", "") for p in parts)
+        except (KeyError, IndexError, TypeError):
+            text = ""
+        if not text.strip():
+            raise ApiError(503, "AI không trả nội dung")
+        return text
+
+    def recognize(self, frame_bgr) -> str:
+        """Dùng cho ứng dụng máy tính: nhận khung hình OpenCV (BGR)."""
+        return self.recognize_jpeg(frame_to_jpeg(frame_bgr), frame_bgr)
+
+    def recognize_jpeg(self, jpeg: bytes, frame_bgr=None) -> str:
+        kw = {"sleep": self.sleep} if self.sleep else {}
+        text, model, _ = call_with_retry(lambda m: self._call(jpeg, m), self.models, **kw)
+        self.last_model = model
+        if frame_bgr is None or self.link_mode != "geometry":
+            return text
+        from .core import extract_json
+        data = extract_json(text)
+        if data is None:
+            return text
+        self.last_data = apply_geometry(frame_bgr, data)
+        return json.dumps(self.last_data, ensure_ascii=False)
+
+
+def _header_retry_after(headers):
+    try:
+        value = headers.get("Retry-After") if headers else None
+        return float(value) if value else None
+    except (TypeError, ValueError):
+        return None

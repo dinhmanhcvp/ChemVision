@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CHEM VISION – Ghép thẻ, nhận diện phân tử</title>
+  <meta name="description" content="Ghép thẻ nguyên tố dưới camera, nhấn KIỂM TRA để biết cấu trúc phân tử có đúng không.">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>CHEM VISION</h1>
+    <p class="sub">Ghép thẻ nguyên tố thành phân tử, nhấn KIỂM TRA để biết cấu trúc có đúng không</p>
+  </header>
+
+  <main class="grid">
+    <section class="card" aria-labelledby="cam-title">
+      <h2 id="cam-title">Camera</h2>
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="snap" hidden></canvas>
+        <p id="stage-hint" class="stage-hint">Bật camera hoặc chọn một ảnh có sẵn.</p>
+      </div>
+      <div class="row">
+        <button id="btn-camera" type="button">Bật camera</button>
+        <select id="camera-select" aria-label="Chọn camera" hidden></select>
+        <label class="btn secondary" for="file-input">Chọn ảnh</label>
+        <input id="file-input" type="file" accept="image/*" hidden>
+      </div>
+      <button id="btn-check" class="primary" type="button" disabled>KIỂM TRA</button>
+      <p class="note">Mỗi lần nhấn chỉ một khung hình được gửi đi để nhận diện, ảnh không được lưu. Không để người hoặc thông tin cá nhân vào khung hình.</p>
+    </section>
+
+    <section class="card" aria-labelledby="res-title">
+      <h2 id="res-title">Kết quả</h2>
+      <div id="result" class="result" role="status" aria-live="polite">Chưa có kết quả.</div>
+      <div id="suggest" class="suggest" hidden>
+        <p id="suggest-q"></p>
+        <div class="row">
+          <button id="sg-yes" type="button">Đúng</button>
+          <button id="sg-no" type="button" class="secondary">Không phải</button>
+        </div>
+      </div>
+      <div class="row between">
+        <label class="check"><input id="speak" type="checkbox" checked> Đọc kết quả</label>
+        <span id="meta-line" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="ch-title">
+      <h2 id="ch-title">Chế độ thử thách</h2>
+      <div class="row">
+        <select id="deck" aria-label="Bộ đề"></select>
+        <button id="ch-start" type="button">Bắt đầu</button>
+        <button id="ch-end" type="button" class="secondary" disabled>Kết thúc</button>
+      </div>
+      <p id="ch-task" class="task">Chọn bộ đề rồi nhấn Bắt đầu.</p>
+      <div class="row">
+        <button id="ch-hint" type="button" class="secondary" disabled>Gợi ý (−2 điểm)</button>
+        <button id="ch-skip" type="button" class="secondary" disabled>Bỏ qua câu</button>
+        <span id="ch-score" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="set-title">
+      <h2 id="set-title">Thiết lập</h2>
+      <label class="field">Mã truy cập
+        <input id="code" type="password" autocomplete="off" placeholder="Do người triển khai cung cấp">
+      </label>
+      <label class="field">Nhóm
+        <input id="group" type="text" maxlength="30" value="Nhóm 1">
+      </label>
+      <div class="row">
+        <select id="scenario" aria-label="Tình huống chạy thử"></select>
+        <button id="btn-demo" type="button" class="secondary">Chạy thử</button>
+      </div>
+      <p class="note">Chạy thử dùng dữ liệu dựng sẵn, không cần camera, mã truy cập hay hạn mức API.</p>
+      <div class="row">
+        <button id="btn-report" type="button" class="secondary">Báo cáo lớp học</button>
+        <button id="btn-clear" type="button" class="secondary">Xóa nhật ký</button>
+        <span id="log-count" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="report-dialog">
+    <h2>Báo cáo lớp học</h2>
+    <pre id="report-text"></pre>
+    <div class="row">
+      <button id="btn-csv" type="button">Tải CSV (mở được bằng Excel)</button>
+      <button id="btn-close" type="button" class="secondary">Đóng</button>
+    </div>
+  </dialog>
+
+  <footer class="foot">Nhật ký và điểm thử thách chỉ lưu trong trình duyệt này, không lưu trên máy chủ.</footer>
+  <script src="/app.js"></script>
+</body>
+</html>

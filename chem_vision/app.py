@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
 from .core import _speech_of, analyze, count_phrase, describe_structure, sub_label
 from .features import DECKS, Challenge, SessionLog
@@ -363,7 +363,7 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
     import json
     import cv2
     from .geometry import annotate
-    from .recognizer import GeminiRecognizer, load_api_key
+    from .recognizer import GeminiRest, load_api_key
 
     frame = cv2.imread(path)
     if frame is None:
@@ -373,7 +373,7 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
     if not key:
         print("Chưa có khóa API: điền GEMINI_API_KEY vào chem_vision/.env")
         return 1
-    rec = GeminiRecognizer(key, link_mode=link_mode)
+    rec = GeminiRest(key, link_mode=link_mode)
     try:
         raw = rec.recognize(frame)
     except GaveUp as err:
@@ -393,7 +393,7 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
 
 def main(argv=None):
     import argparse
-    from .recognizer import GeminiRecognizer, load_api_key
+    from .recognizer import GeminiRest, load_api_key
     from .speech import Speaker
 
     ap = argparse.ArgumentParser(description="CHEM VISION")
@@ -420,7 +420,7 @@ def main(argv=None):
         key = load_api_key(os.path.join(here, "chem_vision"), here)
         if camera and key:
             try:
-                recognizer, mode = GeminiRecognizer(key), "Gemini + camera"
+                recognizer, mode = GeminiRest(key), "Gemini + camera"
             except Exception as err:
                 note = f"Không khởi tạo được Gemini ({err})"
         elif camera and not key:

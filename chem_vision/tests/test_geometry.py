@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from chem_vision.core import analyze
 from chem_vision.geometry import apply_geometry, card_links, valid_box
-from chem_vision.recognizer import GeminiRecognizer
+from chem_vision.recognizer import GeminiRest
 
 W, H, R = 640, 480, 50          # ảnh 640 x 480, thẻ lục giác bán kính R (cạnh nhọn nằm ngang)
 TABLE = (60, 90, 130)           # màu mặt bàn (BGR)
@@ -125,28 +125,37 @@ class Links(unittest.TestCase):
             self.assertFalse(valid_box(bad))
 
 
-class FakeGenai:
+class FakeResponse:
     def __init__(self, text):
-        self.text, self.models = text, self
+        self.body = json.dumps({"candidates": [{"content": {"parts": [{"text": text}]}}]}).encode()
 
-    def generate_content(self, model, contents, config):
-        return type("R", (), {"text": self.text})()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.body
+
+
+def rest(text, **kw):
+    return GeminiRest("khoa-gia", opener=lambda req, timeout=None: FakeResponse(text), **kw)
 
 
 class RecognizerUsesGeometry(unittest.TestCase):
     def test_ai_links_overridden(self):
         img, data = water_scene(far=True)
         data["connections"] = [{"a": 1, "b": 3}, {"a": 1, "b": 2}, {"a": 2, "b": 3}, {"a": 3, "b": 4}]   # AI đoán dư
-        rec = GeminiRecognizer("k", client=FakeGenai(json.dumps(data)))
-        out = json.loads(rec.recognize(img))
+        out = json.loads(rest(json.dumps(data)).recognize(img))
         self.assertEqual({tuple(sorted((c["a"], c["b"]))) for c in out["connections"]}, {(1, 2), (2, 3)})
         self.assertEqual(out["links_source"], "geometry")
 
     def test_ai_mode_keeps_ai_links(self):
         img, data = water_scene()
         data["connections"] = [{"a": 1, "b": 3}]
-        rec = GeminiRecognizer("k", client=FakeGenai(json.dumps(data)), link_mode="ai")
-        self.assertEqual(json.loads(rec.recognize(img))["connections"], [{"a": 1, "b": 3}])
+        out = json.loads(rest(json.dumps(data), link_mode="ai").recognize(img))
+        self.assertEqual(out["connections"], [{"a": 1, "b": 3}])
 
 
 if __name__ == "__main__":

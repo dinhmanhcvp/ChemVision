@@ -1,45 +1,91 @@
 # CHEM VISION
 
-Ứng dụng hỗ trợ dạy hóa học lớp 7: học sinh ghép thẻ nguyên tố lục giác thành phân tử dưới camera,
-nhấn **KIỂM TRA**, phần mềm cho biết cấu trúc vừa ghép có đúng một chất trong cơ sở dữ liệu hay không.
+Ứng dụng hỗ trợ dạy hóa học lớp 7: học sinh ghép thẻ nguyên tố thành phân tử dưới camera, nhấn **KIỂM TRA**,
+phần mềm cho biết cấu trúc vừa ghép có đúng một chất trong cơ sở dữ liệu (31 chất) hay không.
 
-Nguyên tắc: **AI chỉ "nhìn", phần mềm "kết luận"**. Gemini chỉ trả danh sách thẻ và các cặp thẻ chạm
-cạnh (prompt không chứa công thức). Việc xác định chất do thuật toán đối sánh đồ thị quyết định.
+Nguyên tắc: **AI chỉ "nhìn", phần mềm "kết luận"**. Gemini chỉ đọc kí hiệu và khung bao của từng thẻ (prompt không
+chứa công thức). Liên kết giữa các thẻ do phần mềm đo bằng hình học (OpenCV), việc xác định chất do thuật toán
+đối sánh đồ thị quyết định.
 
-## Cài đặt
+Có hai cách dùng, chung một phần lõi (`chem_vision/core.py`):
+
+| | Bản web (triển khai lên Vercel) | Bản máy tính (Tkinter) |
+|---|---|---|
+| Camera | camera của trình duyệt, hoặc chọn ảnh | camera USB (OpenCV) |
+| Giọng nói | giọng đọc của trình duyệt (vi-VN) | gTTS + pygame |
+| Nhật ký, điểm | lưu trong trình duyệt, xuất CSV | tệp CSV cạnh dự án |
+| Cài đặt | không cần | `pip install -r requirements-desktop.txt` |
+
+## Bản web: chạy thử ở máy
 
 ```
 pip install -r requirements.txt
+python scripts/dev_server.py 3000
 ```
 
-Khóa API Gemini: sao chép `chem_vision/.env.example` thành `chem_vision/.env` rồi điền `GEMINI_API_KEY=...`
-(tệp `.env` nằm trong `.gitignore`, không bị đẩy lên GitHub). Thứ tự tìm khóa: biến môi trường `GEMINI_API_KEY`,
-rồi `.env` và `api_key.txt` trong thư mục `chem_vision`, rồi trong thư mục gốc dự án.
+Mở http://localhost:3000. Máy chủ thử đọc `GEMINI_API_KEY` từ `chem_vision/.env` (sao chép từ `.env.example`) và cần
+biến môi trường `ACCESS_CODE` để nhận ảnh thật. Nút **Chạy thử** dùng dữ liệu dựng sẵn, không cần khóa hay mã.
 
-## Chạy
+## Triển khai lên Vercel
+
+Cấu hình đã có sẵn: `vercel.json` (thư mục `public`, hàm `api/*.py`, tối đa 60 giây, vùng `sin1`, header bảo mật và
+quyền camera), `requirements.txt` (chỉ `numpy` và `opencv-python-headless`), `.python-version` (3.12), `.vercelignore`.
+
+1. Đưa mã lên GitHub, vào vercel.com, **Add New → Project**, chọn repo. **Framework Preset: Other**; để trống
+   Build Command và Output Directory (đã khai trong `vercel.json`).
+2. Ở **Settings → Environment Variables** thêm hai biến cho Production (và Preview nếu cần):
+
+   | Biến | Giá trị |
+   |---|---|
+   | `GEMINI_API_KEY` | khóa API Gemini của bạn |
+   | `ACCESS_CODE` | mã truy cập do bạn đặt (giáo viên nhập trên trang để dùng nhận diện ảnh) |
+
+   Khóa API chỉ nằm ở phía máy chủ, không bao giờ gửi xuống trình duyệt. **Không đặt `ACCESS_CODE` thì máy chủ từ chối
+   nhận ảnh**, để tránh trang công khai bị người lạ dùng hết hạn mức API của bạn.
+3. **Deploy**, rồi mở địa chỉ được cấp. Camera chỉ hoạt động trên HTTPS (Vercel đã có sẵn).
+4. Kiểm tra sau khi triển khai: nhấn **Chạy thử** (phải ra kết quả), nhập mã truy cập rồi chọn một ảnh thẻ và nhấn
+   **KIỂM TRA**.
+
+Dùng dòng lệnh thay cho giao diện web: `npm i -g vercel`, `vercel link`, `vercel env add GEMINI_API_KEY`,
+`vercel env add ACCESS_CODE`, `vercel --prod`.
+
+Lưu ý khi vận hành:
+
+- Mỗi lượt KIỂM TRA gọi Gemini một lần và tính vào hạn mức của khóa API. Mỗi địa chỉ IP bị giới hạn 20 lượt/phút
+  (tính trong từng phiên bản máy chủ, chỉ là lớp bảo vệ phụ); lớp bảo vệ chính là `ACCESS_CODE`. Nên đặt hạn mức chi
+  tiêu cho khóa API trong Google AI Studio.
+- Ảnh được gửi qua máy chủ Vercel tới Google và không được lưu. Nhắc học sinh không để người hoặc thông tin cá nhân
+  vào khung hình.
+- Tên model nằm ở `chem_vision/recognizer.py` (`MODELS`). Tên model của Google thay đổi theo thời gian; nếu
+  gặp lỗi 404 hoặc 502, đổi tên model rồi triển khai lại.
+
+## Bản máy tính
+
+```
+pip install -r requirements-desktop.txt
+```
 
 | Lệnh | Tác dụng |
 |---|---|
 | `python -m chem_vision` | Camera + Gemini (cần camera và khóa API) |
-| `python -m chem_vision --demo` | Chế độ thử: không cần camera, mạng hay khóa API; chọn tình huống giả lập |
+| `python -m chem_vision --demo` | Chế độ thử: không cần camera, mạng hay khóa API |
 | `python -m chem_vision --camera 1` | Dùng camera thứ hai |
-| `python -m chem_vision --image anh.jpg --debug-out kq.png` | Nhận diện một ảnh có sẵn (không cần camera), lưu ảnh vẽ khung thẻ và liên kết để kiểm tra bằng mắt |
-| `python -m chem_vision --image anh.jpg --ai-links` | Như trên nhưng dùng liên kết do AI đoán (để so sánh với hình học) |
+| `python -m chem_vision --image anh.jpg --debug-out kq.png` | Nhận diện một ảnh có sẵn, lưu ảnh vẽ khung thẻ và liên kết |
+| `python -m chem_vision --image anh.jpg --ai-links` | Như trên nhưng dùng liên kết do AI đoán (để so sánh) |
 | `chay_chem_vision.bat` | Chạy nhanh trên Windows |
 
-Thiếu camera hoặc khóa API thì ứng dụng tự chuyển sang chế độ thử và ghi lý do ở góc phải.
+Khóa API: sao chép `chem_vision/.env.example` thành `chem_vision/.env` rồi điền `GEMINI_API_KEY=...`
+(`.env` đã nằm trong `.gitignore`). Thứ tự tìm khóa: biến môi trường, rồi `.env` và `api_key.txt` trong `chem_vision`,
+rồi trong thư mục gốc.
 
 ## Tính năng
 
-- Camera Live, nút KIỂM TRA (chỉ một khung hình được gửi đi, không ghi ảnh ra đĩa)
-- Nhận diện thẻ: Gemini đọc kí hiệu và khung bao; **liên kết giữa các thẻ được tính bằng hình học (OpenCV)**, không để AI đoán; loại thẻ bị liệt kê hai lần
-- Đối sánh với 31 chất, phân biệt: khớp, sai liên kết, ghép dở, không nhận ra
+- Nhận diện thẻ (Gemini đọc kí hiệu và khung bao), liên kết đo bằng hình học, loại thẻ bị liệt kê hai lần
+- Đối sánh với 31 chất: khớp, sai liên kết (nêu liên kết thừa/thiếu), ghép dở, không nhận ra; tách cụm thẻ rời nhau
 - Gợi ý "Có phải bạn muốn ghép …?" kèm nút Đúng / Không phải, nêu thẻ thiếu hoặc thừa
-- Tách cụm thẻ rời nhau, yêu cầu chụp lại khi ảnh chưa rõ
-- Đọc kết quả bằng giọng nói tiếng Việt (gTTS + pygame)
-- Tự thử lại và chuyển model dự phòng khi API lỗi
+- Yêu cầu chụp lại khi ảnh chưa rõ; tự thử lại và chuyển model dự phòng khi API lỗi
 - **Chế độ thử thách**: bộ đề, tự chấm, 3 mức gợi ý, tính điểm
-- **Nhật ký lớp học**: ghi CSV (không lưu ảnh, không lưu tên) và báo cáo lỗi thường gặp
+- **Nhật ký lớp học**: ghi từng lượt (không lưu ảnh, không lưu tên), báo cáo lỗi thường gặp, xuất CSV
 
 ## Kiểm thử
 
@@ -47,26 +93,25 @@ Thiếu camera hoặc khóa API thì ứng dụng tự chuyển sang chế độ
 python -m unittest discover -s chem_vision/tests -t .
 ```
 
-62 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả). Kiểm thử giao diện cần màn hình.
+96 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả). Kiểm thử giao diện máy tính cần màn hình.
 
 ## Cấu trúc
 
 | Tệp | Nội dung |
 |---|---|
-| `core.py` | làm sạch dữ liệu AI, cơ sở dữ liệu 31 chất, đối sánh đồ thị, gợi ý, lời thông báo |
-| `retry.py` | thử lại, model dự phòng, ngân sách thời gian |
-| `recognizer.py` | prompt, gọi Gemini, bộ giả lập |
-| `speech.py` | giọng nói |
-| `features.py` | chế độ thử thách, nhật ký lớp học |
-| `app.py` | giao diện Tkinter |
+| `chem_vision/core.py` | làm sạch dữ liệu AI, cơ sở dữ liệu 31 chất, đối sánh đồ thị, gợi ý, lời thông báo |
+| `chem_vision/geometry.py` | liên kết thẻ bằng hình học, loại thẻ trùng |
+| `chem_vision/recognizer.py` | prompt, gọi Gemini bằng REST, bộ giả lập |
+| `chem_vision/retry.py` | thử lại, model dự phòng, ngân sách thời gian |
+| `chem_vision/features.py` | chế độ thử thách, nhật ký lớp học |
+| `chem_vision/web.py` | các điểm vào của bản web (mã truy cập, giới hạn tần suất, kiểm tra ảnh) |
+| `api/*.py` | hàm serverless Vercel (mỏng, gọi `web.py`) |
+| `public/` | giao diện web |
+| `chem_vision/app.py`, `speech.py` | giao diện và giọng nói bản máy tính |
+| `scripts/dev_server.py` | máy chủ thử cục bộ giống Vercel |
 
 ## Đã và chưa kiểm chứng
 
-Đã thử với Gemini thật bằng 2 ảnh thẻ nguyên tố (thẻ chữ nhật, không phải thẻ lục giác ghép phân tử): đọc đúng kí hiệu
-thẻ nhìn rõ, khung bao chuẩn, mỗi ảnh xử lý trong khoảng 4-6 giây. Chưa chạy với camera và bộ thẻ lục giác thật; chưa đo
-độ chính xác trên bộ ảnh có đáp án.
-
-Model (`recognizer.MODELS`): `gemini-flash-lite-latest` (chính, 3-4 giây/ảnh) và `gemini-2.5-flash` (dự phòng). Khi thử,
-`gemini-2.5-flash-lite` báo 404 (không còn dùng được) và `gemini-flash-latest` mất 55-180 giây/ảnh nên không dùng. Tên model
-thay đổi theo thời gian: nếu gặp lỗi 404, đổi tên trong `MODELS` (liệt kê model dùng được bằng API `v1beta/models`).
-Tùy chọn tắt suy luận mở rộng (`THINKING_BUDGET`) chỉ có tác dụng với `google-genai` từ bản 1.x trở lên.
+Đã thử với Gemini thật bằng 2 ảnh thẻ nguyên tố (thẻ chữ nhật, không phải thẻ lục giác ghép phân tử), qua cả máy chủ
+thử cục bộ lẫn giao diện web: mỗi ảnh khoảng 3-6 giây. Chưa triển khai thật lên Vercel, chưa chạy với camera và bộ thẻ
+lục giác thật, chưa đo độ chính xác trên bộ ảnh có đáp án.
