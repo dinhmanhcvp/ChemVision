@@ -148,6 +148,105 @@ class Flow(unittest.TestCase):
         self.assertEqual(sorted(g["nhóm"] for g in out["nhóm"]), ["Nhóm 1", "Nhóm 2"])
 
 
+class Activity(unittest.TestCase):
+    def setUp(self):
+        self.clock = Clock()
+        self.store = C.MemoryStore(self.clock)
+        _, out = C.handle({"action": "create"}, {}, HDR, store=self.store, now=self.clock())
+        self.code, self.key = out["code"], out["teacher_key"]
+
+    def act(self, **kw):
+        return C.handle({"action": "activity", "code": self.code, **kw}, {}, HDR, store=self.store, now=self.clock())
+
+    def state(self):
+        return C.handle({"action": "state", "code": self.code, "teacher_key": self.key}, {}, HDR, store=self.store, now=self.clock())[1]
+
+    def group(self, name):
+        return next(g for g in self.state()["nhóm"] if g["nhóm"] == name)
+
+    def test_group_appears_as_soon_as_it_starts_even_without_attempts(self):
+        self.assertEqual(self.act(group="Nhóm 1", type="start", deck="Lớp 8: Oxit", progress="1/6")[0], 200)
+        g = self.group("Nhóm 1")
+        self.assertEqual((g["lượt"], g["bộ đề"], g["tiến độ"], g["công thức"]), (0, "Lớp 8: Oxit", "1/6", ""))
+
+    def test_skip_hint_end_are_counted(self):
+        self.act(group="Nhóm 1", type="start", deck="Khởi động", progress="1/6")
+        self.act(group="Nhóm 1", type="skip", progress="2/6")
+        self.act(group="Nhóm 1", type="skip", progress="3/6")
+        self.act(group="Nhóm 1", type="hint")
+        g = self.group("Nhóm 1")
+        self.assertEqual((g["bỏ qua"], g["gợi ý"], g["tiến độ"], g["đã kết thúc"]), (2, 1, "3/6", False))
+        self.act(group="Nhóm 1", type="end", progress="6/6")
+        self.assertTrue(self.group("Nhóm 1")["đã kết thúc"])
+
+    def test_restart_resets_counters(self):
+        self.act(group="Nhóm 1", type="start", deck="Khởi động", progress="1/6")
+        self.act(group="Nhóm 1", type="skip", progress="2/6")
+        self.act(group="Nhóm 1", type="end", progress="6/6")
+        self.act(group="Nhóm 1", type="start", deck="Lớp 9: Hiđrocacbon", progress="1/6")
+        g = self.group("Nhóm 1")
+        self.assertEqual((g["bỏ qua"], g["đã kết thúc"], g["bộ đề"]), (0, False, "Lớp 9: Hiđrocacbon"))
+
+    def test_idle_group_is_flagged_but_finished_group_is_not(self):
+        self.act(group="Nhóm 1", type="start", deck="Khởi động", progress="1/6")
+        self.act(group="Nhóm 2", type="start", deck="Khởi động", progress="1/6")
+        self.act(group="Nhóm 2", type="end", progress="6/6")
+        self.clock.t += C.IDLE_AFTER + 5
+        out = self.state()
+        self.assertEqual(out["nhóm rảnh"], ["Nhóm 1"])
+        self.act(group="Nhóm 1", type="skip", progress="2/6")
+        self.assertEqual(self.state()["nhóm rảnh"], [])
+
+    def test_stuck_groups_sorted_first(self):
+        self.act(group="A", type="start", deck="Khởi động", progress="1/6")
+        for _ in range(3):
+            C.handle({"action": "submit", "code": self.code, "row": row("Z", "NaCl", "KHÔNG NHẬN RA")}, {}, HDR,
+                     store=self.store, now=self.clock())
+        names = [g["nhóm"] for g in self.state()["nhóm"]]
+        self.assertEqual(names[0], "Z")
+
+    def test_suggestion_feedback_counted(self):
+        self.act(group="Nhóm 1", type="suggest", accepted=True)
+        self.act(group="Nhóm 1", type="suggest", accepted=False)
+        self.act(group="Nhóm 2", type="suggest", accepted=False)
+        self.assertEqual(self.state()["gợi ý chất"], {"đúng": 1, "không phải": 2})
+
+    def test_validation(self):
+        self.assertEqual(self.act(group="a", type="hack")[0], 400)
+        self.assertEqual(self.act(group="a")[0], 400)
+        status, _ = C.handle({"action": "activity", "code": "ZZZZZZ", "type": "start"}, {}, HDR, store=self.store)
+        self.assertEqual(status, 404)
+
+    def test_sanitising_and_limits(self):
+        self.act(group="<b>Nhóm</b>" + "x" * 80, type="start", deck="d" * 500, progress="9" * 50)
+        ev = self.store.lrange(f"act:{self.code}")[0]
+        self.assertNotIn("<", ev["nhóm"])
+        self.assertLessEqual(len(ev["nhóm"]), 30)
+        self.assertLessEqual(len(ev["bộ đề"]), 60)
+        self.assertLessEqual(len(ev["tiến độ"]), 12)
+
+    def test_end_class_deletes_activity_too(self):
+        self.act(group="Nhóm 1", type="start", deck="Khởi động", progress="1/6")
+        C.handle({"action": "end", "code": self.code, "teacher_key": self.key}, {}, HDR, store=self.store, now=self.clock())
+        self.assertEqual(self.store.lrange(f"act:{self.code}"), [])
+
+    def test_memory_store_keeps_every_concurrent_rpush(self):
+        import threading
+        store = C.MemoryStore()
+        threads = [threading.Thread(target=lambda i=i: [store.rpush("k", {"n": i, "j": j}, 60, 10000) for j in range(200)]) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(store.lrange("k")), 8 * 200)
+
+    def test_activity_is_rate_limited_per_action(self):
+        self.assertIn("activity", C.RATE)
+        status, _ = C.handle({"action": "activity", "code": self.code, "type": "start"}, {}, HDR, store=self.store,
+                             limiter=lambda a, h: a == "activity")
+        self.assertEqual(status, 429)
+
+
 class UpstashRest(unittest.TestCase):
     class Resp:
         def __init__(self, body):

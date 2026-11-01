@@ -333,6 +333,9 @@ class HttpEndToEnd(unittest.TestCase):
         c.request("POST", "/api/hint", body=b"[1,2]", headers={"Content-Length": "5"})
         self.assertEqual(c.getresponse().status, 400)
 
+    def test_e2e_script_route_is_disabled_unless_requested(self):
+        self.assertEqual(self.req("GET", "/__e2e.js")[0], 404)
+
     def test_unknown_route_and_traversal(self):
         self.assertEqual(self.req("GET", "/api/khong-co")[0], 404)
         self.assertEqual(self.req("GET", "/../vercel.json")[0], 404)

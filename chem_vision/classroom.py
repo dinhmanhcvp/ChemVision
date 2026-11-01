@@ -11,6 +11,7 @@ import hmac
 import json
 import re
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -25,7 +26,10 @@ MAX_EVENTS = 2000
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"        # bỏ các kí tự dễ nhầm: I, O, 0, 1
 OUTCOMES = {"ĐÚNG", "ĐÚNG CHẤT KHÁC", "SAI LIÊN KẾT", "GHÉP DỞ", "KHÔNG NHẬN RA"}
 STUCK_AFTER = 3                                           # sai từ ngần này lần liền trên cùng một câu thì coi là kẹt
-RATE = {"create": (5, 60.0), "join": (30, 60.0), "submit": (90, 60.0), "state": (60, 60.0)}
+RATE = {"create": (5, 60.0), "join": (30, 60.0), "submit": (90, 60.0), "activity": (150, 60.0), "state": (60, 60.0)}
+ACTIVITY = {"start": "bắt đầu bộ đề", "skip": "bỏ qua câu", "hint": "xin gợi ý", "end": "kết thúc bộ đề",
+            "suggest": "trả lời gợi ý"}
+IDLE_AFTER = 120                                          # giây không có hoạt động thì coi là nhóm đang rảnh
 
 
 # --------------------------------------------------------------------------- kho lưu trữ
@@ -34,6 +38,7 @@ class MemoryStore:
 
     def __init__(self, clock=time.time):
         self.clock, self.data = clock, {}
+        self._lock = threading.Lock()                          # máy chủ thử chạy nhiều luồng; RPUSH của Upstash vốn nguyên tử
 
     def _live(self, key):
         item = self.data.get(key)
@@ -50,10 +55,11 @@ class MemoryStore:
         return item[0] if item else None
 
     def rpush(self, key, value, ttl, cap):
-        item = self._live(key)
-        items = list(item[0]) if item else []
-        items.append(value)
-        self.data[key] = (items[-cap:], self.clock() + ttl)
+        with self._lock:
+            item = self._live(key)
+            items = list(item[0]) if item else []
+            items.append(value)
+            self.data[key] = (items[-cap:], self.clock() + ttl)
 
     def lrange(self, key):
         item = self._live(key)
@@ -142,13 +148,20 @@ def _new_code(store) -> str:
     raise StoreError("Không tạo được mã lớp, hãy thử lại.")
 
 
-def summarize(events: list[dict], now: float) -> dict:
+def summarize(events: list[dict], now: float, acts: list[dict] | None = None) -> dict:
+    acts = acts or []
     groups: dict[str, dict] = {}
+
+    def group(name):
+        return groups.setdefault(name, {"attempts": 0, "solved": set(), "fails": Counter(), "last": None, "streak": Counter(),
+                                        "t": 0.0, "deck": "", "progress": "", "skips": 0, "hints": 0, "ended": False,
+                                        "yes": 0, "no": 0})
     per_target: dict[str, Counter] = {}
     for e in events:
-        g = groups.setdefault(e["nhóm"], {"attempts": 0, "solved": set(), "fails": Counter(), "last": None, "streak": Counter()})
+        g = group(e["nhóm"])
         t = e["chất mục tiêu"]
         g["attempts"] += 1
+        g["t"] = max(g["t"], float(e.get("t", 0)))
         pt = per_target.setdefault(t, Counter())
         pt["attempts"] += 1
         if e["kết quả"] == "ĐÚNG":
@@ -159,25 +172,50 @@ def summarize(events: list[dict], now: float) -> dict:
             g["streak"][t] += 1
             pt["wrong"] += 1
         g["last"] = e
+    for a in acts:
+        g = group(a["nhóm"])
+        g["t"] = max(g["t"], float(a.get("t", 0)))
+        kind = a.get("loại")
+        if kind == "start":
+            g.update(deck=a.get("bộ đề", ""), progress=a.get("tiến độ", ""), ended=False, skips=0, hints=0)
+        elif kind == "skip":
+            g["skips"] += 1
+            g["progress"] = a.get("tiến độ", g["progress"])
+        elif kind == "hint":
+            g["hints"] += 1
+        elif kind == "end":
+            g["ended"] = True
+            g["progress"] = a.get("tiến độ", g["progress"])
+        elif kind == "suggest":
+            g["yes" if a.get("đúng") else "no"] += 1
     rows = []
-    for name, g in sorted(groups.items()):
+    for name, g in groups.items():
         last = g["last"]
-        t = last["chất mục tiêu"]
-        stuck = t not in g["solved"] and g["streak"][t] >= STUCK_AFTER
+        t = last["chất mục tiêu"] if last else ""
+        stuck = bool(last) and t not in g["solved"] and g["streak"][t] >= STUCK_AFTER
+        idle = int(now - g["t"]) if g["t"] else 0
         rows.append({
             "nhóm": name, "lượt": g["attempts"], "đã xong": len(g["solved"]),
-            "câu gần nhất": t, "công thức": BY_KEY[t].formula, "kết quả gần nhất": last["kết quả"],
-            "kẹt": stuck, "giây trước": max(0, int(now - last.get("t", now))),
+            "câu gần nhất": t, "công thức": BY_KEY[t].formula if last else "",
+            "kết quả gần nhất": last["kết quả"] if last else "",
+            "kẹt": stuck, "giây trước": max(0, idle), "bộ đề": g["deck"], "tiến độ": g["progress"],
+            "bỏ qua": g["skips"], "gợi ý": g["hints"], "đã kết thúc": g["ended"],
+            "rảnh": (not g["ended"]) and idle >= IDLE_AFTER,
         })
+    rows.sort(key=lambda r: (not r["kẹt"], not r["rảnh"], r["nhóm"]))
     targets = [{"chất": t, "công thức": BY_KEY[t].formula, "tên": BY_KEY[t].name, "lượt": c["attempts"], "sai": c["wrong"],
                 "tỉ lệ sai": round(c["wrong"] / c["attempts"], 2)} for t, c in per_target.items()]
     targets.sort(key=lambda x: (-x["tỉ lệ sai"], -x["lượt"]))
     tags = Counter(tag for e in events for tag in row_tags(e))
+    yes = sum(g["yes"] for g in groups.values())
+    no = sum(g["no"] for g in groups.values())
     return {
         "nhóm": rows, "câu khó": targets[:5], "tổng lượt": len(events),
         "quan niệm sai": [{"mã": code, "nhãn": ADVICE[code][0], "lượt": n, "cách xử lý": ADVICE[code][1]}
                           for code, n in tags.most_common(4)],
         "nhóm kẹt": [r["nhóm"] for r in rows if r["kẹt"]],
+        "nhóm rảnh": [r["nhóm"] for r in rows if r["rảnh"]],
+        "gợi ý chất": {"đúng": yes, "không phải": no},
     }
 
 
@@ -210,6 +248,16 @@ def handle(payload: dict, env, headers, store=None, now: float | None = None, li
             return _err(404, "Không tìm thấy lớp với mã này (mã sai hoặc lớp đã hết hạn).")
         if action == "join":                                   # chỉ xác nhận mã lớp, không ghi dữ liệu
             return 200, {"ok": True, "name": info["name"]}
+        if action == "activity":                               # nút Bắt đầu, Bỏ qua, Gợi ý, Kết thúc, Đúng/Không phải
+            typ = payload.get("type")
+            if typ not in ACTIVITY:
+                return _err(400, "Loại hoạt động không hợp lệ.")
+            event = {"nhóm": _clean_group(payload.get("group")), "loại": typ, "t": now,
+                     "bộ đề": str(payload.get("deck") or "")[:60], "tiến độ": str(payload.get("progress") or "")[:12]}
+            if typ == "suggest":
+                event["đúng"] = bool(payload.get("accepted"))
+            store.rpush(f"act:{code}", event, TTL, MAX_EVENTS)
+            return 200, {"ok": True}
         if action == "submit":
             row = payload.get("row")
             if not isinstance(row, dict) or row.get("chất mục tiêu") not in BY_KEY or row.get("kết quả") not in OUTCOMES:
@@ -224,10 +272,10 @@ def handle(payload: dict, env, headers, store=None, now: float | None = None, li
         if not hmac.compare_digest(_hash(key), info["key"]):
             return _err(403, "Khóa giáo viên không đúng.")
         if action == "end":
-            store.delete(f"cls:{code}", f"evt:{code}")
+            store.delete(f"cls:{code}", f"evt:{code}", f"act:{code}")
             return 200, {"ok": True}
         events = store.lrange(f"evt:{code}")
-        out = {"ok": True, "name": info["name"], "code": code, **summarize(events, now)}
+        out = {"ok": True, "name": info["name"], "code": code, **summarize(events, now, store.lrange(f"act:{code}"))}
         out["report"] = SessionLog(rows=events).teacher_report()
         return 200, out
     except StoreError as err:

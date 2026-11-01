@@ -15,7 +15,8 @@ import time
 from collections import Counter, defaultdict, deque
 
 from .core import (BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
-from .curriculum import DECK_GRADE, DECK_STYLE, GRADE_TITLES
+from .curriculum import (ATOMIC_MASS, COLORS, DECK_GRADE, DECK_STYLE, GRADE_TITLES, format_mass,
+                         molecular_mass)
 from .features import (BASE_SCORE, DECKS, HINT_PENALTY, MAX_HINTS, MIN_SOLVED, WRONG_PENALTY, Challenge,
                        SessionLog, hint_for, valence_prompt)
 from .markers import cards_from_markers
@@ -73,6 +74,13 @@ def decode_image(data: str) -> bytes | None:
     return raw if raw[:2] == b"\xff\xd8" else None          # chỉ nhận JPEG
 
 
+def _mass_text(sub) -> str | None:
+    comp = sub.graph.composition()
+    if any(sym not in ATOMIC_MASS for sym in comp):
+        return None
+    return format_mass(molecular_mass(comp))
+
+
 def _counter(c: Counter) -> dict:
     return {k: int(v) for k, v in c.items()}
 
@@ -83,7 +91,7 @@ def analysis_to_dict(a: Analysis, data: dict | None = None, model: str | None = 
         item = {"kind": r.kind, "cards": [str(i) for i in ids]}
         if r.substance is not None:
             item["substance"] = {"key": r.substance.key, "name": r.substance.name, "formula": r.substance.formula,
-                                 "ionic": r.substance.ionic, "grade": r.substance.grade}
+                                 "ionic": r.substance.ionic, "grade": r.substance.grade, "mass": _mass_text(r.substance)}
         if r.same_composition:
             item["same_composition"] = [{"key": s.key, "name": s.name, "formula": s.formula} for s in r.same_composition]
         if r.kind == "SUGGEST":
@@ -136,6 +144,7 @@ def handle_meta(env=None) -> tuple[int, dict]:
         "equations": [{"id": i, "reactants": r, "products": p} for i, (r, p) in enumerate(reactions.EQUATIONS)],
         "models": list(MODELS),
         "elements": ELEMENT_NAMES,
+        "colors": {sym: "#%02x%02x%02x" % rgb for sym, rgb in COLORS.items()},
     }
 
 

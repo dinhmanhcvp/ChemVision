@@ -3,125 +3,224 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CHEM VISION – Ghép thẻ, nhận diện phân tử</title>
+  <title>Chem Vision – ghép thẻ nguyên tố, kiểm tra phân tử</title>
   <meta name="description" content="Ghép thẻ nguyên tố dưới camera, nhấn KIỂM TRA để biết cấu trúc phân tử có đúng không. Khoa học tự nhiên THCS.">
+  <meta name="theme-color" content="#1d1c19">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
   <header class="top">
-    <h1>CHEM VISION</h1>
-    <p class="sub">Ghép thẻ nguyên tố thành phân tử, nhấn KIỂM TRA để biết cấu trúc có đúng không · Khoa học tự nhiên THCS</p>
+    <div class="brand"><img src="/favicon.svg" alt="" width="34" height="34"><span>Chem Vision</span></div>
+    <div id="stars-chip" class="tally" title="Số sao bạn đã đạt" aria-label="Số sao đã đạt"><i class="ic ic-star" aria-hidden="true"></i><span id="stars-count">0</span></div>
   </header>
 
-  <main class="grid">
-    <section class="card" aria-labelledby="cam-title">
-      <h2 id="cam-title">Camera</h2>
-      <div class="stage" id="stage">
-        <video id="video" playsinline muted></video>
-        <canvas id="snap" hidden></canvas>
-        <p id="stage-hint" class="stage-hint">Bật camera hoặc chọn một ảnh có sẵn.</p>
-      </div>
-      <p id="live-quality" class="quality" aria-live="polite"></p>
-      <div class="row">
-        <button id="btn-camera" type="button">Bật camera</button>
-        <select id="camera-select" aria-label="Chọn camera" hidden></select>
-        <label class="btn secondary" for="file-input">Chọn ảnh</label>
-        <input id="file-input" type="file" accept="image/*" hidden>
-      </div>
-      <button id="btn-check" class="primary" type="button" disabled>KIỂM TRA</button>
-      <p class="note">Thẻ có mã vuông đen trắng ở giữa được đọc ngay trên máy chủ, không cần khóa AI. Mỗi lần nhấn chỉ một khung hình được gửi đi, ảnh không được lưu. Không để người hoặc thông tin cá nhân vào khung hình.</p>
-    </section>
+  <nav class="tabs" id="tabs" aria-label="Chức năng">
+    <button type="button" class="tab" id="tab-ghep" data-view="ghep" aria-current="page"><i class="ic ic-flask" aria-hidden="true"></i><span>Ghép thẻ</span></button>
+    <button type="button" class="tab" id="tab-thuthach" data-view="thuthach"><i class="ic ic-target" aria-hidden="true"></i><span>Thử thách</span></button>
+    <button type="button" class="tab" id="tab-canbang" data-view="canbang"><i class="ic ic-scale" aria-hidden="true"></i><span>Cân bằng</span></button>
+    <button type="button" class="tab" id="tab-lop" data-view="lop"><i class="ic ic-users" aria-hidden="true"></i><span>Lớp học</span></button>
+    <button type="button" class="tab" id="tab-them" data-view="them"><i class="ic ic-sliders" aria-hidden="true"></i><span>Thêm</span></button>
+  </nav>
 
-    <section class="card" aria-labelledby="res-title">
-      <h2 id="res-title">Kết quả</h2>
-      <div id="result" class="result" role="status" aria-live="polite">Chưa có kết quả.</div>
-      <p id="quality-note" class="quality" hidden></p>
-      <details id="why" hidden>
-        <summary>Vì sao?</summary>
-        <ul id="why-list"></ul>
-      </details>
-      <div id="suggest" class="suggest" hidden>
-        <p id="suggest-q"></p>
-        <div class="row">
-          <button id="sg-yes" type="button">Đúng</button>
-          <button id="sg-no" type="button" class="secondary">Không phải</button>
+  <main class="page">
+    <!-- ================= GHÉP THẺ ================= -->
+    <section class="view" id="view-ghep" aria-label="Ghép thẻ">
+      <div id="welcome" class="welcome card">
+        <img src="/img/water-cards.svg" alt="Ba thẻ lục giác H, O, H xếp cạnh nhau tạo thành phân tử nước" width="190" height="80">
+        <div>
+          <p class="eyebrow">Cách dùng</p>
+          <h2>Ghép thẻ, chụp, kiểm tra</h2>
+          <p>Xếp các thẻ lục giác sao cho cạnh chạm nhau, chụp một ảnh rồi bấm <strong>KIỂM TRA</strong>. Kết quả cho biết đúng hay chưa, và vì sao.</p>
+          <button id="welcome-close" type="button" class="btn small">Đã hiểu</button>
         </div>
       </div>
-      <div class="row between">
-        <label class="check"><input id="speak" type="checkbox" checked> Đọc kết quả</label>
-        <span id="meta-line" class="muted"></span>
-      </div>
-    </section>
 
-    <section class="card" aria-labelledby="ch-title">
-      <h2 id="ch-title">Chế độ thử thách</h2>
-      <div class="row">
-        <select id="grade" aria-label="Lọc theo lớp"></select>
-        <select id="deck" aria-label="Bộ đề"></select>
-      </div>
-      <div class="row">
-        <button id="ch-start" type="button">Bắt đầu</button>
-        <button id="ch-end" type="button" class="secondary" disabled>Kết thúc</button>
-      </div>
-      <p id="ch-task" class="task">Chọn bộ đề rồi nhấn Bắt đầu.</p>
-      <div class="row">
-        <button id="ch-hint" type="button" class="secondary" disabled>Gợi ý (−2 điểm)</button>
-        <button id="ch-skip" type="button" class="secondary" disabled>Bỏ qua câu</button>
-        <span id="ch-score" class="muted"></span>
-      </div>
-    </section>
-
-    <section class="card" aria-labelledby="eq-title">
-      <h2 id="eq-title">Cân bằng phương trình (lớp 8)</h2>
-      <div class="row"><select id="eq-select" aria-label="Chọn phương trình"></select></div>
-      <div id="eq-form" class="eq-form"></div>
-      <div class="row">
-        <button id="eq-check" type="button">Kiểm tra hệ số</button>
-        <button id="eq-reveal" type="button" class="secondary">Xem đáp án</button>
-      </div>
-      <p id="eq-msg" class="result small" role="status" aria-live="polite">Điền hệ số vào từng ô, mỗi hệ số từ 1 đến 20.</p>
-    </section>
-
-    <section class="card" aria-labelledby="cl-title">
-      <h2 id="cl-title">Lớp học trực tuyến</h2>
-      <p id="class-off" class="note" hidden>Tính năng này chưa được bật trên máy chủ (cần kết nối kho lưu trữ Upstash Redis).</p>
-      <div id="class-box">
-        <div class="row">
-          <button id="class-create" type="button">Tạo lớp (giáo viên)</button>
-          <button id="class-open" type="button" class="secondary" hidden>Mở bảng điều khiển</button>
+      <div id="mission" class="mission card" hidden>
+        <div class="mission-head">
+          <div>
+            <p class="eyebrow" id="mission-eyebrow">Nhiệm vụ</p>
+            <h2 id="mission-title">Ghép phân tử</h2>
+          </div>
+          <span id="ch-score" class="chip">Điểm: 0</span>
         </div>
-        <p id="class-info" class="task" hidden></p>
+        <p id="ch-task" class="mission-task"></p>
+        <div id="mission-dots" class="dots" role="progressbar" aria-label="Tiến độ bộ đề" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
         <div class="row">
-          <input id="class-code" type="text" maxlength="6" placeholder="Mã lớp (học sinh)" autocomplete="off" aria-label="Mã lớp">
-          <button id="class-join" type="button" class="secondary">Vào lớp</button>
-          <button id="class-leave" type="button" class="secondary" hidden>Rời lớp</button>
+          <button id="ch-hint" type="button" class="btn ghost" title="Xem gợi ý cho câu hiện tại (trừ 2 điểm)"><i class="ic ic-bulb" aria-hidden="true"></i>Gợi ý</button>
+          <button id="ch-skip" type="button" class="btn ghost" title="Bỏ qua câu hiện tại (0 điểm)"><i class="ic ic-skip" aria-hidden="true"></i>Bỏ qua</button>
+          <button id="ch-end" type="button" class="btn ghost" title="Dừng và xem tổng kết">Dừng</button>
         </div>
-        <p id="class-msg" class="note" role="status" aria-live="polite"></p>
+      </div>
+
+      <ol class="stepper" id="stepper" aria-label="Các bước">
+        <li id="step-1" class="on"><span>01</span> Ghép thẻ</li>
+        <li id="step-2"><span>02</span> Chụp</li>
+        <li id="step-3"><span>03</span> Kết quả</li>
+      </ol>
+
+      <div class="duo">
+        <section class="card cam-card" aria-labelledby="cam-title">
+          <h2 id="cam-title" class="sr-only">Camera</h2>
+          <div class="stage" id="stage">
+            <video id="video" playsinline muted></video>
+            <canvas id="snap" hidden></canvas>
+            <div class="brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <p id="stage-hint" class="stage-hint"><img src="/img/water-cards-on-dark.svg" alt="" width="150" height="63"><span>Bật camera hoặc chọn một ảnh có sẵn</span></p>
+          </div>
+          <p id="live-quality" class="quality" aria-live="polite"></p>
+          <div class="row">
+            <button id="btn-camera" type="button" class="btn ghost" title="Bật hoặc tắt camera của thiết bị"><i class="ic ic-camera" aria-hidden="true"></i><span>Bật camera</span></button>
+            <select id="camera-select" aria-label="Chọn camera" hidden></select>
+            <label class="btn ghost" for="file-input" title="Chọn một ảnh thẻ có sẵn trên thiết bị"><i class="ic ic-image" aria-hidden="true"></i>Chọn ảnh</label>
+            <input id="file-input" type="file" accept="image/*" hidden>
+          </div>
+          <button id="btn-check" class="btn primary big" type="button" disabled title="Chụp khung hình hiện tại và kiểm tra các thẻ">KIỂM TRA</button>
+          <p id="check-hint" class="note" role="status">Bật camera hoặc chọn ảnh để kiểm tra.</p>
+        </section>
+
+        <section class="card result-card" aria-labelledby="res-title">
+          <h2 id="res-title" class="sr-only">Kết quả</h2>
+          <div id="result" class="result idle" role="status" aria-live="polite" aria-busy="false">
+            <img id="seal" class="seal" src="/img/seal-wait.svg" alt="" width="72" height="81">
+            <div class="verdict">
+              <p class="headline" id="headline">Chưa có kết quả</p>
+              <p class="sub" id="sub">Ghép thẻ, chụp ảnh rồi nhấn KIỂM TRA nhé.</p>
+            </div>
+          </div>
+          <div id="cards-seen" class="chips tiles" aria-label="Các thẻ nhìn thấy" hidden></div>
+          <div id="facts" class="chips" hidden></div>
+          <p id="quality-note" class="quality" hidden></p>
+          <details id="why" hidden>
+            <summary>Vì sao?</summary>
+            <ul id="why-list"></ul>
+          </details>
+          <div id="suggest" class="suggest" hidden>
+            <p id="suggest-q"></p>
+            <div class="row">
+              <button id="sg-yes" type="button" class="btn small">Đúng</button>
+              <button id="sg-no" type="button" class="btn small ghost">Không phải</button>
+            </div>
+          </div>
+          <p id="meta-line" class="note"></p>
+        </section>
       </div>
     </section>
 
-    <section class="card" aria-labelledby="set-title">
-      <h2 id="set-title">Thiết lập</h2>
-      <label class="field">Mã truy cập (cho thẻ không có mã vuông)
-        <input id="code" type="password" autocomplete="off" placeholder="Do người triển khai cung cấp">
-      </label>
-      <label class="field">Nhóm
-        <input id="group" type="text" maxlength="30" value="Nhóm 1">
-      </label>
-      <div class="row">
-        <select id="scenario" aria-label="Tình huống chạy thử"></select>
-        <button id="btn-demo" type="button" class="secondary">Chạy thử</button>
+    <!-- ================= THỬ THÁCH ================= -->
+    <section class="view" id="view-thuthach" aria-label="Thử thách" hidden>
+      <div class="view-head">
+        <p class="eyebrow">Thử thách</p>
+        <h1>Chọn nhiệm vụ</h1>
+        <p>Mỗi nhiệm vụ là một bộ phân tử cần ghép. Mỗi ô lục giác nhỏ là một chất: xám nhạt là chưa làm, viền đen là 1 sao, đen đặc là 2 sao, tâm vàng là 3 sao.</p>
       </div>
-      <p class="note">Chạy thử dùng dữ liệu dựng sẵn, không cần camera, mã truy cập hay hạn mức API.</p>
-      <div class="row">
-        <button id="btn-report" type="button" class="secondary">Báo cáo lớp học</button>
-        <button id="btn-clear" type="button" class="secondary">Xóa nhật ký</button>
-        <span id="log-count" class="muted"></span>
+      <div id="grade-chips" class="seg" role="group" aria-label="Lọc theo lớp"></div>
+      <div id="deck-grid" class="deck-grid"></div>
+      <div id="shelf" class="card shelf">
+        <h2>Huy hiệu của bạn</h2>
+        <div id="badges" class="badges"></div>
       </div>
-      <p class="note">Tải bộ thẻ in (A4, có mã đọc ngoại tuyến):
-        <a href="/the-in/bo-the-lop-7.pdf" download>Lớp 7</a> ·
-        <a href="/the-in/bo-the-lop-8.pdf" download>Lớp 8</a> ·
-        <a href="/the-in/bo-the-lop-9.pdf" download>Lớp 9</a></p>
+    </section>
+
+    <!-- ================= CÂN BẰNG ================= -->
+    <section class="view" id="view-canbang" aria-label="Cân bằng phương trình" hidden>
+      <div class="view-head">
+        <p class="eyebrow">Lớp 8</p>
+        <h1>Cân bằng phương trình</h1>
+        <p>Chọn hệ số sao cho số nguyên tử mỗi nguyên tố hai bên bằng nhau.</p>
+      </div>
+      <div class="card">
+        <label class="field">Phương trình
+          <select id="eq-select" aria-label="Chọn phương trình"></select>
+        </label>
+        <div id="eq-form" class="eq-form"></div>
+        <table id="eq-counts" class="counts" aria-label="Bảng đếm nguyên tử"><thead><tr><th>Nguyên tố</th><th>Vế trái</th><th>Vế phải</th><th></th></tr></thead><tbody></tbody></table>
+        <div class="row">
+          <button id="eq-check" type="button" class="btn" title="Kiểm tra các hệ số đã nhập">Kiểm tra</button>
+          <button id="eq-reveal" type="button" class="btn ghost" title="Điền sẵn đáp án vào các ô">Xem đáp án</button>
+          <button id="eq-next" type="button" class="btn ghost" hidden>Phương trình tiếp theo<i class="ic ic-arrow" aria-hidden="true"></i></button>
+        </div>
+        <p id="eq-msg" class="notice" role="status" aria-live="polite">Điền hệ số vào từng ô, mỗi hệ số là số nguyên từ 1 đến 20.</p>
+      </div>
+    </section>
+
+    <!-- ================= LỚP HỌC ================= -->
+    <section class="view" id="view-lop" aria-label="Lớp học trực tuyến" hidden>
+      <div class="view-head">
+        <p class="eyebrow">Giáo viên và nhóm</p>
+        <h1>Lớp học trực tuyến</h1>
+        <p>Giáo viên tạo lớp và xem các nhóm đang làm gì. Học sinh vào lớp bằng mã 6 kí tự.</p>
+      </div>
+      <p id="class-off" class="card note" hidden>Tính năng này chưa được bật trên máy chủ (cần kết nối kho lưu trữ Upstash Redis).</p>
+      <div id="class-box" class="duo">
+        <div class="card">
+          <h2><i class="ic ic-board" aria-hidden="true"></i>Tôi là giáo viên</h2>
+          <p class="note">Tạo lớp, đọc mã cho học sinh, rồi mở bảng điều khiển.</p>
+          <div class="row">
+            <button id="class-create" type="button" class="btn" title="Giáo viên tạo lớp và nhận mã cho học sinh">Tạo lớp</button>
+            <button id="class-open" type="button" class="btn ghost" hidden>Mở bảng điều khiển</button>
+            <button id="class-copy" type="button" class="btn ghost" hidden title="Sao chép mã lớp">Sao chép mã</button>
+          </div>
+          <p id="class-info" class="big-code" hidden></p>
+        </div>
+        <div class="card">
+          <h2><i class="ic ic-person" aria-hidden="true"></i>Tôi là học sinh</h2>
+          <p class="note">Nhập mã lớp giáo viên đã đọc.</p>
+          <div class="row">
+            <input id="class-code" type="text" maxlength="6" placeholder="Mã lớp" autocomplete="off" autocapitalize="characters" aria-label="Mã lớp">
+            <button id="class-join" type="button" class="btn" title="Vào lớp bằng mã giáo viên cho">Vào lớp</button>
+            <button id="class-leave" type="button" class="btn ghost" hidden>Rời lớp</button>
+          </div>
+          <p id="class-msg" class="note" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= THÊM ================= -->
+    <section class="view" id="view-them" aria-label="Thiết lập" hidden>
+      <div class="view-head"><p class="eyebrow">Tùy chọn</p><h1>Thiết lập</h1></div>
+      <div class="duo">
+        <div class="card">
+          <h2>Của bạn</h2>
+          <label class="field">Tên nhóm
+            <input id="group" type="text" maxlength="30" value="Nhóm 1">
+          </label>
+          <label class="switch"><input id="speak" type="checkbox" checked> <span><i class="ic ic-volume" aria-hidden="true"></i>Đọc kết quả thành tiếng</span></label>
+          <label class="switch"><input id="fx" type="checkbox" checked> <span><i class="ic ic-burst" aria-hidden="true"></i>Hiệu ứng khi đúng</span></label>
+          <label class="switch"><input id="sfx" type="checkbox"> <span><i class="ic ic-bell" aria-hidden="true"></i>Âm thanh "ting"</span></label>
+          <button id="howto-open" type="button" class="btn ghost small">Xem lại hướng dẫn</button>
+        </div>
+        <div class="card">
+          <h2>Thử nhanh, không cần thẻ</h2>
+          <div class="row">
+            <select id="scenario" aria-label="Tình huống chạy thử"></select>
+            <button id="btn-demo" type="button" class="btn ghost" title="Chạy thử với dữ liệu dựng sẵn">Chạy thử</button>
+          </div>
+          <p class="note">Dùng dữ liệu dựng sẵn, không cần camera, mã truy cập hay hạn mức API. Kết quả hiện ở thẻ Ghép thẻ.</p>
+        </div>
+        <div class="card">
+          <h2>In bộ thẻ</h2>
+          <p class="note">Khổ A4, có mã vuông để máy đọc không cần Internet.</p>
+          <div class="row">
+            <a class="btn ghost small" href="/the-in/bo-the-lop-7.pdf" download>Lớp 7</a>
+            <a class="btn ghost small" href="/the-in/bo-the-lop-8.pdf" download>Lớp 8</a>
+            <a class="btn ghost small" href="/the-in/bo-the-lop-9.pdf" download>Lớp 9</a>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Dành cho giáo viên</h2>
+          <label class="field">Mã truy cập (cho thẻ không có mã vuông)
+            <input id="code" type="password" autocomplete="off" placeholder="Do người triển khai cung cấp">
+          </label>
+          <div class="row">
+            <button id="btn-report" type="button" class="btn ghost" title="Xem báo cáo lỗi thường gặp của nhóm bạn"><i class="ic ic-chart" aria-hidden="true"></i>Báo cáo</button>
+            <button id="btn-clear" type="button" class="btn ghost" title="Xóa nhật ký trong trình duyệt này">Xóa nhật ký</button>
+            <span id="log-count" class="note"></span>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -129,23 +228,32 @@
     <h2>Báo cáo lớp học</h2>
     <pre id="report-text"></pre>
     <div class="row">
-      <button id="btn-csv" type="button">Tải CSV (mở được bằng Excel)</button>
-      <button id="btn-close" type="button" class="secondary">Đóng</button>
+      <button id="btn-csv" type="button" class="btn">Tải CSV (mở được bằng Excel)</button>
+      <button id="btn-close" type="button" class="btn ghost">Đóng</button>
     </div>
   </dialog>
 
   <dialog id="class-dialog">
     <h2 id="class-title">Bảng điều khiển lớp</h2>
-    <p id="class-sub" class="muted"></p>
+    <p id="class-sub" class="note"></p>
     <div class="table-wrap"><table id="class-table"><thead></thead><tbody></tbody></table></div>
     <div id="class-extra"></div>
     <div class="row">
-      <button id="class-end" type="button" class="secondary">Kết thúc lớp (xóa dữ liệu)</button>
-      <button id="class-close" type="button" class="secondary">Đóng</button>
+      <button id="class-end" type="button" class="btn ghost">Kết thúc lớp (xóa dữ liệu)</button>
+      <button id="class-close" type="button" class="btn ghost">Đóng</button>
     </div>
   </dialog>
 
-  <footer class="foot">Nhật ký và điểm thử thách lưu trong trình duyệt này; chỉ khi vào lớp trực tuyến, kết quả từng lượt (không kèm ảnh hay tên) mới được gửi lên máy chủ.</footer>
-  <script src="/app.js"></script>
+  <dialog id="confirm-dialog">
+    <p id="confirm-text"></p>
+    <div class="row">
+      <button id="confirm-yes" type="button" class="btn">Đồng ý</button>
+      <button id="confirm-no" type="button" class="btn ghost">Hủy</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <footer class="foot">Nhật ký, sao và điểm lưu trong trình duyệt này; chỉ khi vào lớp trực tuyến, kết quả từng lượt (không kèm ảnh hay tên) mới được gửi lên máy chủ.</footer>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

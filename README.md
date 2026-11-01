@@ -26,9 +26,11 @@ Chưa có: glucozơ, saccarozơ, polime (quá nhiều nguyên tử để ghép b
 - **Giải thích "Vì sao?"** bằng lời lớp 7 (hóa trị, liên kết thừa/thiếu, đồng phân); phân tử khối; chú thích hợp chất ion (liên kết ion, mạng tinh thể, nét đứt trên ảnh)
 - **Gợi ý** "Có phải bạn muốn ghép …?" kèm nút Đúng / Không phải, nêu thẻ thiếu hoặc thừa
 - **Chế độ thử thách:** 11 bộ đề theo lớp, tự chấm, 3 mức gợi ý, tính điểm; đề theo hóa trị ("lập công thức của Al (III) và O (II) rồi ghép")
-- **Cân bằng phương trình (lớp 8):** nhập hệ số, báo nguyên tố nào chưa cân bằng, xem đáp án
+- **Sao và huy hiệu:** 1 đến 3 sao cho mỗi chất giải đúng, 5 huy hiệu, lưu ngay trong trình duyệt; không có bảng xếp hạng, đồng hồ đếm ngược hay "mất chuỗi"
+- **Cân bằng phương trình (lớp 8):** nhập hệ số bằng nút − và +, bảng đếm nguyên tử cho thấy ngay nguyên tố nào lệch, xem đáp án
 - **Nhật ký và báo cáo giáo viên:** lỗi thường gặp, **quan niệm sai kèm cách xử lý**, xuất CSV
-- **Lớp học trực tuyến:** giáo viên tạo lớp lấy mã, các nhóm vào bằng mã, bảng điều khiển thấy nhóm xong, nhóm kẹt, câu sai nhiều (cần Upstash Redis)
+- **Lớp học trực tuyến:** giáo viên tạo lớp lấy mã, các nhóm vào bằng mã, bảng điều khiển thấy bộ đề và tiến độ từng nhóm, số lần bỏ qua và xin gợi ý, nhóm kẹt, nhóm đang rảnh, câu sai nhiều; lớp kết thúc thì máy học sinh tự ra khỏi lớp (cần Upstash Redis)
+- **Giao diện "phiếu thí nghiệm":** năm thẻ (Ghép thẻ, Thử thách, Cân bằng, Lớp học, Thêm), thanh bước 01-02-03, nền giấy ấm, con dấu lục giác cho kết quả, tổ ong tiến độ, biểu tượng SVG (không emoji), chế độ tối, tôn trọng "giảm chuyển động"; căn cứ và điều chưa kiểm chứng ở `docs/ngon-ngu-thiet-ke.md`
 - **Bộ thẻ in được:** PDF A4 cho lớp 7, 8, 9 (`public/the-in/`), tạo bằng `scripts/make_cards.py`
 - **Thử nghiệm đối chứng:** bộ câu hỏi trước/sau, thiết kế và công cụ phân tích thống kê (`docs/`, `scripts/analyze_experiment.py`)
 
@@ -114,8 +116,31 @@ Khóa API: sao chép `chem_vision/.env.example` thành `chem_vision/.env` rồi 
 python -m unittest discover -s chem_vision/tests -t .
 ```
 
-208 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả; vòng "in thẻ rồi nhận diện" chạy trên trang in thật). Kiểm thử giao diện
+245 kiểm thử, không cần camera hay mạng (Gemini được thay bằng bản giả; vòng "in thẻ rồi nhận diện" chạy trên trang in thật). Kiểm thử giao diện
 máy tính cần màn hình.
+
+### Kiểm thử giao diện theo vai người dùng
+
+`scripts/e2e_browser.js` chạy trong trình duyệt thật, đóng vai học sinh lớp 7 lần đầu dùng, học sinh lớp 8 làm thử thách và cân bằng phương trình,
+giáo viên và nhóm trong lớp, người không có camera, người dùng mất mạng; 113 kiểm tra (gồm cân bằng cả 24 phương trình, sao và huy hiệu,
+vòng đời lớp học, bố cục không tràn ngang, nút đủ lớn để chạm, mọi điều khiển có tên truy cập, không vi phạm CSP).
+
+```
+ACCESS_CODE=thu CLASSROOM_MEMORY=1 E2E=1 python scripts/dev_server.py 3111
+```
+
+Mở http://localhost:3111, rồi dán vào console của trình duyệt:
+
+```
+document.head.append(Object.assign(document.createElement('script'), { src: '/__e2e.js' }));
+await runE2E();
+```
+
+Kết quả dạng `{ passed: 113, failed: [] }` (ở khung hẹp dưới 200 px các kiểm tra bố cục tự bỏ qua nên số kiểm tra ít hơn). Kịch bản dùng dữ liệu "Chạy thử"
+nên không cần camera hay khóa API; đã chạy ở khung máy tính 1180 px, điện thoại 390 px (cả sáng và tối) và kiểm tra tràn ngang ở 320 px.
+`chem_vision/tests/test_ui_wiring.py` kiểm tra tĩnh: mọi nút có xử lý và được phân loại (gọi máy chủ hay chỉ chạy trong trình duyệt), không dùng hộp
+`confirm()` mặc định, không dùng `innerHTML`, camera chỉ mở khi bấm nút; cùng các ràng buộc của ngôn ngữ thiết kế (tương phản chữ đạt WCAG AA ở cả
+nền sáng và tối, nút chạm tối thiểu 48 px, tôn trọng giảm chuyển động, không tải tài nguyên bên ngoài, không emoji làm biểu tượng, không nền chuyển màu, không bảng xếp hạng hay đồng hồ đếm ngược).
 
 ## Cấu trúc
 
@@ -127,17 +152,19 @@ máy tính cần màn hình.
 | `chem_vision/recognizer.py`, `retry.py` | gọi Gemini bằng REST, thử lại và model dự phòng, bộ giả lập |
 | `chem_vision/pedagogy.py`, `reactions.py` | giải thích lỗi và quan niệm sai; cân bằng phương trình |
 | `chem_vision/features.py`, `classroom.py` | thử thách, nhật ký; lớp học trực tuyến |
-| `chem_vision/web.py`, `api/*.py`, `public/` | bản web (điểm vào, hàm serverless, giao diện) |
+| `chem_vision/web.py`, `api/*.py` | bản web (điểm vào, hàm serverless) |
+| `public/` | giao diện web: `index.html`, `style.css`, `app.js` (điều khiển), `ui.js` (biểu tượng, con dấu, pháo giấy, thông báo), `progress.js` (sao, huy hiệu), `img/` (con dấu, minh họa, 27 biểu tượng) |
 | `chem_vision/app.py`, `speech.py` | giao diện và giọng nói bản máy tính |
 | `scripts/` | `dev_server.py`, `make_cards.py`, `analyze_experiment.py` |
-| `docs/` | phân tích thị trường, thiết kế thử nghiệm, bộ câu hỏi |
+| `docs/` | phân tích thị trường, ngôn ngữ thiết kế giao diện, thiết kế thử nghiệm, bộ câu hỏi |
 
 ## Đã và chưa kiểm chứng
 
 Đã thử với Gemini thật bằng 2 ảnh thẻ nguyên tố (thẻ chữ nhật, không phải thẻ lục giác ghép phân tử), qua máy chủ thử và giao diện web (3 đến 7 giây).
-Đã thử giao diện web trong trình duyệt: lọc theo lớp, đề theo hóa trị, phương trình, ảnh thẻ có mã, lớp học (bằng kho trong bộ nhớ), không vi phạm CSP.
+Đã thử giao diện web trong trình duyệt tích hợp (không phải điện thoại thật): lọc theo lớp, đề theo hóa trị, phương trình, ảnh thẻ có mã, lớp học (bằng kho trong bộ nhớ), sao và huy hiệu, chế độ tối, không vi phạm CSP.
 Vòng in thẻ rồi đọc lại đã kiểm tra tự động trên trang in thật, kể cả khi thu nhỏ, nghiêng, hơi mờ.
 
 **Chưa kiểm chứng:** triển khai thật lên Vercel (gồm việc `cv2.aruco` có trong gói headless trên môi trường chạy của Vercel), kết nối Upstash Redis thật,
 camera thật trong trình duyệt, thẻ thật in ra giấy rồi chụp bằng điện thoại, độ chính xác Gemini trên bộ ảnh có đáp án, giọng đọc của trình duyệt,
+giao diện trên điện thoại thật và với học sinh thật (mức hứng thú, tải nhận thức, độ dễ dùng của nút chỉ được đánh giá theo nghiên cứu và đo bố cục, chưa đo trên người dùng),
 và hiệu quả dạy học (cần thử nghiệm đối chứng).

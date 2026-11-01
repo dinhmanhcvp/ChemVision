@@ -36,7 +36,18 @@ class Dev(BaseHTTPRequestHandler):
         mod = importlib.import_module(f"api.{route}")
         getattr(mod.handler, "do_" + self.command)(self)
 
+    def _e2e(self):
+        """Chỉ khi đặt E2E=1: phục vụ kịch bản kiểm thử giao diện để nạp vào trang (xem scripts/e2e_browser.js)."""
+        data = open(os.path.join(ROOT, "scripts", "e2e_browser.js"), "rb").read()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _static(self):
+        if self.path.split("?")[0] == "/__e2e.js" and os.environ.get("E2E") == "1":
+            return self._e2e()
         rel = self.path.split("?")[0].lstrip("/") or "index.html"
         full = os.path.normpath(os.path.join(PUBLIC, rel))
         if not full.startswith(PUBLIC + os.sep) or not os.path.isfile(full):
