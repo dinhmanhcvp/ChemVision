@@ -52,7 +52,7 @@ def parse_formula(f):
 
 class Database(unittest.TestCase):
     def test_size(self):
-        self.assertEqual(len(DATABASE), 31)
+        self.assertEqual(len(DATABASE), 70)
 
     def test_composition_matches_formula(self):
         for s in DATABASE:
@@ -75,7 +75,7 @@ class Database(unittest.TestCase):
                 self.assertFalse(is_isomorphic(a.graph, b.graph), (a.key, b.key))
 
     def test_max_atoms(self):
-        self.assertEqual(max(len(s.graph.labels) for s in DATABASE), 9)
+        self.assertEqual(max(len(s.graph.labels) for s in DATABASE), 14)
 
 
 class Matching(unittest.TestCase):

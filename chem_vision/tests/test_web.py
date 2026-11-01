@@ -142,9 +142,13 @@ class Others(unittest.TestCase):
     def test_meta(self):
         status, out = web.handle_meta()
         self.assertEqual(status, 200)
-        self.assertEqual(out["substances"], 31)
+        self.assertEqual(out["substances"], 70)
         self.assertIn("Khởi động", out["decks"])
         self.assertEqual(out["decks"]["Khởi động"][0]["formula"], "H2")
+        self.assertEqual(out["deck_info"]["Lớp 8: Oxit"], {"grade": 8, "style": "name"})
+        self.assertIn("prompt", out["decks"]["Lớp 7: Lập công thức theo hóa trị"][0])
+        self.assertNotIn("prompt", out["decks"]["Khởi động"][0])
+        self.assertEqual(sorted(out["grades"]), ["6", "7", "8", "9"] if isinstance(next(iter(out["grades"])), str) else [6, 7, 8, 9])
         self.assertEqual(out["scoring"]["base"], 10)
 
     def test_hint(self):
@@ -297,7 +301,7 @@ class HttpEndToEnd(unittest.TestCase):
         s, ct, raw = self.req("GET", "/api/meta")
         self.assertEqual(s, 200)
         self.assertIn("application/json", ct)
-        self.assertEqual(json.loads(raw)["substances"], 31)
+        self.assertEqual(json.loads(raw)["substances"], 70)
 
     def test_wrong_method_is_405_json(self):
         s, ct, raw = self.req("GET", "/api/analyze")
@@ -335,6 +339,61 @@ class HttpEndToEnd(unittest.TestCase):
         self.assertEqual(self.req("GET", "/..%2fvercel.json")[0], 404)
 
 
+class MarkersAndQuality(unittest.TestCase):
+    def setUp(self):
+        web._hits.clear()
+
+    @staticmethod
+    def b64(img):
+        ok, buf = cv2.imencode(".jpg", img)
+        return base64.b64encode(buf.tobytes()).decode()
+
+    @staticmethod
+    def textured(factor=1.0):
+        tile = np.indices((480, 640)).sum(axis=0) // 8 % 2
+        img = np.repeat(np.where(tile == 0, 20, 180).astype(np.uint8)[..., None], 3, axis=2)
+        return (img * factor).astype(np.uint8)
+
+    def test_marker_photo_needs_no_code_or_key(self):
+        from chem_vision.tests.test_markers import scene, water
+        status, out = web.handle_analyze({"image": self.b64(scene(water()))}, {}, {"x-forwarded-for": "7.7.7.7"})
+        self.assertEqual(status, 200)
+        self.assertTrue(out["model"].startswith("mã đánh dấu"))
+        self.assertEqual(out["links_source"], "markers")
+        self.assertEqual([c["kind"] for c in out["clusters"]].count("MATCH"), 1)
+        self.assertIn("nước", out["message"])
+
+    def test_marker_photo_with_challenge_target(self):
+        from chem_vision.tests.test_markers import scene, water
+        _, out = web.handle_analyze({"image": self.b64(scene(water(False))), "target": "H2O"}, {}, {"x-forwarded-for": "7.7.7.8"})
+        self.assertTrue(out["attempt"]["correct"])
+
+    def test_plain_photo_still_needs_access_code(self):
+        status, _ = web.handle_analyze({"image": self.b64(self.textured())}, ENV, {"x-forwarded-for": "7.7.7.9"})
+        self.assertEqual(status, 401)
+
+    def test_dark_photo_is_blocked_before_calling_ai(self):
+        def boom(*a, **k):
+            raise AssertionError("không được gọi AI với ảnh hỏng")
+        rec = GeminiRest("khoa-gia", opener=boom)
+        dark = np.full((480, 640, 3), 15, np.uint8)
+        status, out = web.handle_analyze({"image": self.b64(dark)}, ENV, HDR, recognizer=rec)
+        self.assertEqual(status, 200)
+        self.assertEqual(out["status"], "RECAPTURE")
+        self.assertIn("tối", out["message"])
+
+    def test_mild_problem_reaches_ai_with_warning(self):
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(1)
+            return RestClient.Resp(RestClient.ok(WATER))
+        rec = GeminiRest("khoa-gia", opener=opener)
+        status, out = web.handle_analyze({"image": self.b64(self.textured(0.6))}, ENV, HDR, recognizer=rec)
+        self.assertEqual((status, len(calls), out["status"]), (200, 1, "OK"))
+        self.assertTrue(any("tối" in w for w in out["quality"]["warnings"]))
+
+
 class VercelConfig(unittest.TestCase):
     def test_vercel_json(self):
         cfg = json.load(open(os.path.join(ROOT, "vercel.json"), encoding="utf-8"))
@@ -347,7 +406,9 @@ class VercelConfig(unittest.TestCase):
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
 
     def test_files_present(self):
-        for rel in ("api/analyze.py", "api/meta.py", "api/hint.py", "api/report.py", "public/index.html",
+        for rel in ("api/analyze.py", "api/meta.py", "api/hint.py", "api/report.py", "api/equation.py", "api/classroom.py",
+                    "public/the-in/bo-the-lop-7.pdf", "public/the-in/bo-the-lop-8.pdf", "public/the-in/bo-the-lop-9.pdf",
+                    "public/index.html",
                     "public/app.js", "public/style.css", "requirements.txt", ".python-version"):
             self.assertTrue(os.path.isfile(os.path.join(ROOT, rel)), rel)
         reqs = open(os.path.join(ROOT, "requirements.txt"), encoding="utf-8").read().split()
@@ -356,7 +417,8 @@ class VercelConfig(unittest.TestCase):
     def test_function_modules_import_only_web_dependencies(self):
         import ast
         banned = {"tkinter", "pygame", "gtts", "google", "PIL"}
-        for name in ("web", "recognizer", "core", "features", "geometry", "retry"):
+        for name in ("web", "recognizer", "core", "features", "geometry", "retry", "markers", "quality", "curriculum",
+                     "reactions", "pedagogy", "classroom"):
             tree = ast.parse(open(os.path.join(ROOT, "chem_vision", name + ".py"), encoding="utf-8").read())
             top = {n.names[0].name.split(".")[0] for n in tree.body if isinstance(n, ast.Import)}
             top |= {n.module.split(".")[0] for n in tree.body if isinstance(n, ast.ImportFrom) and n.module and n.level == 0}

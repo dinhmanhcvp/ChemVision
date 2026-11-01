@@ -13,16 +13,12 @@ import time
 from collections import Counter
 from dataclasses import dataclass
 
+from .pedagogy import ADVICE, row_tags
+from .curriculum import DECK_GRADE, DECK_STYLE, DECKS, ROMAN, valence_task  # noqa: F401
 from .core import (BY_KEY, Analysis, ELEMENT_NAMES, card_label, count_phrase,
                    describe_structure)
 
 # --------------------------------------------------------------------------- 1. thử thách
-DECKS = {
-    "Khởi động": ["H2", "O2", "H2O", "CO2", "NH3", "CH4"],
-    "Oxit và axit": ["CO", "SO2", "SO3", "NO2", "HCl", "HNO3", "H2SO4"],
-    "Bazơ và muối": ["NaOH", "KOH", "Ca(OH)2", "NaCl", "Na2CO3", "CaCO3"],
-    "Phân biệt đồng phân": ["C2H5OH", "CH3OCH3", "H2O2", "H2O"],
-}
 BASE_SCORE, WRONG_PENALTY, HINT_PENALTY, MIN_SOLVED = 10, 1, 2, 1
 MAX_HINTS = 3
 
@@ -56,19 +52,31 @@ def hint_for(key: str, level: int) -> str:
     return f"Gợi ý 3: cách nối: {describe_structure(g)}."
 
 
+def valence_prompt(key: str) -> str | None:
+    """Đề theo hóa trị: nêu hai nguyên tố và hóa trị, không nêu công thức hay tên chất."""
+    s = BY_KEY[key]
+    task = valence_task(s.graph.composition(), s.formula)
+    if task is None:
+        return None
+    a, va, b, vb = task
+    return (f"lập công thức hóa học của hợp chất tạo bởi {ELEMENT_NAMES.get(a, a)} {a} (hóa trị {ROMAN[va]}) "
+            f"và {ELEMENT_NAMES.get(b, b)} {b} (hóa trị {ROMAN[vb]}), rồi ghép phân tử đó.")
+
+
 class Challenge:
-    def __init__(self, targets):
+    def __init__(self, targets, style: str = "name"):
         unknown = [t for t in targets if t not in BY_KEY]
         if unknown:
             raise ValueError(f"Chất không có trong cơ sở dữ liệu: {', '.join(unknown)}")
         if not targets:
             raise ValueError("Bộ đề không có câu nào.")
         self.tasks = [Task(t) for t in targets]
+        self.style = style
         self.index = 0
 
     @classmethod
     def from_deck(cls, name):
-        return cls(DECKS[name])
+        return cls(DECKS[name], DECK_STYLE.get(name, "name"))
 
     @property
     def current(self) -> Task | None:
@@ -81,7 +89,12 @@ class Challenge:
     def prompt(self) -> str:
         t = self.current
         s = BY_KEY[t.key]
-        return f"Câu {self.index + 1}/{len(self.tasks)}: hãy ghép phân tử {s.name} ({s.formula})."
+        head = f"Câu {self.index + 1}/{len(self.tasks)}: "
+        if self.style == "valence":
+            text = valence_prompt(t.key)
+            if text:
+                return head + text
+        return head + f"hãy ghép phân tử {s.name} ({s.formula})."
 
     def submit(self, analysis: Analysis) -> Attempt:
         t = self.current
@@ -244,4 +257,10 @@ class SessionLog:
             lines.append("Gợi ý: dành vài phút ôn lại cấu tạo của các chất trên trước tiết sau.")
         else:
             lines.append("Chưa có chất nào bị ghép sai.")
+        tags = Counter(t for row in self.rows for t in row_tags(row))
+        if tags:
+            lines.append("Quan niệm sai thường gặp và cách xử lý:")
+            for code, n in tags.most_common(4):
+                label, advice = ADVICE[code]
+                lines.append(f"- {label}: {n} lượt. {advice}")
         return "\n".join(lines)

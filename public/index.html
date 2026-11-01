@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CHEM VISION – Ghép thẻ, nhận diện phân tử</title>
-  <meta name="description" content="Ghép thẻ nguyên tố dưới camera, nhấn KIỂM TRA để biết cấu trúc phân tử có đúng không.">
+  <meta name="description" content="Ghép thẻ nguyên tố dưới camera, nhấn KIỂM TRA để biết cấu trúc phân tử có đúng không. Khoa học tự nhiên THCS.">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="top">
     <h1>CHEM VISION</h1>
-    <p class="sub">Ghép thẻ nguyên tố thành phân tử, nhấn KIỂM TRA để biết cấu trúc có đúng không</p>
+    <p class="sub">Ghép thẻ nguyên tố thành phân tử, nhấn KIỂM TRA để biết cấu trúc có đúng không · Khoa học tự nhiên THCS</p>
   </header>
 
   <main class="grid">
@@ -21,6 +21,7 @@
         <canvas id="snap" hidden></canvas>
         <p id="stage-hint" class="stage-hint">Bật camera hoặc chọn một ảnh có sẵn.</p>
       </div>
+      <p id="live-quality" class="quality" aria-live="polite"></p>
       <div class="row">
         <button id="btn-camera" type="button">Bật camera</button>
         <select id="camera-select" aria-label="Chọn camera" hidden></select>
@@ -28,12 +29,17 @@
         <input id="file-input" type="file" accept="image/*" hidden>
       </div>
       <button id="btn-check" class="primary" type="button" disabled>KIỂM TRA</button>
-      <p class="note">Mỗi lần nhấn chỉ một khung hình được gửi đi để nhận diện, ảnh không được lưu. Không để người hoặc thông tin cá nhân vào khung hình.</p>
+      <p class="note">Thẻ có mã vuông đen trắng ở giữa được đọc ngay trên máy chủ, không cần khóa AI. Mỗi lần nhấn chỉ một khung hình được gửi đi, ảnh không được lưu. Không để người hoặc thông tin cá nhân vào khung hình.</p>
     </section>
 
     <section class="card" aria-labelledby="res-title">
       <h2 id="res-title">Kết quả</h2>
       <div id="result" class="result" role="status" aria-live="polite">Chưa có kết quả.</div>
+      <p id="quality-note" class="quality" hidden></p>
+      <details id="why" hidden>
+        <summary>Vì sao?</summary>
+        <ul id="why-list"></ul>
+      </details>
       <div id="suggest" class="suggest" hidden>
         <p id="suggest-q"></p>
         <div class="row">
@@ -50,7 +56,10 @@
     <section class="card" aria-labelledby="ch-title">
       <h2 id="ch-title">Chế độ thử thách</h2>
       <div class="row">
+        <select id="grade" aria-label="Lọc theo lớp"></select>
         <select id="deck" aria-label="Bộ đề"></select>
+      </div>
+      <div class="row">
         <button id="ch-start" type="button">Bắt đầu</button>
         <button id="ch-end" type="button" class="secondary" disabled>Kết thúc</button>
       </div>
@@ -62,9 +71,38 @@
       </div>
     </section>
 
+    <section class="card" aria-labelledby="eq-title">
+      <h2 id="eq-title">Cân bằng phương trình (lớp 8)</h2>
+      <div class="row"><select id="eq-select" aria-label="Chọn phương trình"></select></div>
+      <div id="eq-form" class="eq-form"></div>
+      <div class="row">
+        <button id="eq-check" type="button">Kiểm tra hệ số</button>
+        <button id="eq-reveal" type="button" class="secondary">Xem đáp án</button>
+      </div>
+      <p id="eq-msg" class="result small" role="status" aria-live="polite">Điền hệ số vào từng ô, mỗi hệ số từ 1 đến 20.</p>
+    </section>
+
+    <section class="card" aria-labelledby="cl-title">
+      <h2 id="cl-title">Lớp học trực tuyến</h2>
+      <p id="class-off" class="note" hidden>Tính năng này chưa được bật trên máy chủ (cần kết nối kho lưu trữ Upstash Redis).</p>
+      <div id="class-box">
+        <div class="row">
+          <button id="class-create" type="button">Tạo lớp (giáo viên)</button>
+          <button id="class-open" type="button" class="secondary" hidden>Mở bảng điều khiển</button>
+        </div>
+        <p id="class-info" class="task" hidden></p>
+        <div class="row">
+          <input id="class-code" type="text" maxlength="6" placeholder="Mã lớp (học sinh)" autocomplete="off" aria-label="Mã lớp">
+          <button id="class-join" type="button" class="secondary">Vào lớp</button>
+          <button id="class-leave" type="button" class="secondary" hidden>Rời lớp</button>
+        </div>
+        <p id="class-msg" class="note" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
     <section class="card" aria-labelledby="set-title">
       <h2 id="set-title">Thiết lập</h2>
-      <label class="field">Mã truy cập
+      <label class="field">Mã truy cập (cho thẻ không có mã vuông)
         <input id="code" type="password" autocomplete="off" placeholder="Do người triển khai cung cấp">
       </label>
       <label class="field">Nhóm
@@ -80,6 +118,10 @@
         <button id="btn-clear" type="button" class="secondary">Xóa nhật ký</button>
         <span id="log-count" class="muted"></span>
       </div>
+      <p class="note">Tải bộ thẻ in (A4, có mã đọc ngoại tuyến):
+        <a href="/the-in/bo-the-lop-7.pdf" download>Lớp 7</a> ·
+        <a href="/the-in/bo-the-lop-8.pdf" download>Lớp 8</a> ·
+        <a href="/the-in/bo-the-lop-9.pdf" download>Lớp 9</a></p>
     </section>
   </main>
 
@@ -92,7 +134,18 @@
     </div>
   </dialog>
 
-  <footer class="foot">Nhật ký và điểm thử thách chỉ lưu trong trình duyệt này, không lưu trên máy chủ.</footer>
+  <dialog id="class-dialog">
+    <h2 id="class-title">Bảng điều khiển lớp</h2>
+    <p id="class-sub" class="muted"></p>
+    <div class="table-wrap"><table id="class-table"><thead></thead><tbody></tbody></table></div>
+    <div id="class-extra"></div>
+    <div class="row">
+      <button id="class-end" type="button" class="secondary">Kết thúc lớp (xóa dữ liệu)</button>
+      <button id="class-close" type="button" class="secondary">Đóng</button>
+    </div>
+  </dialog>
+
+  <footer class="foot">Nhật ký và điểm thử thách lưu trong trình duyệt này; chỉ khi vào lớp trực tuyến, kết quả từng lượt (không kèm ảnh hay tên) mới được gửi lên máy chủ.</footer>
   <script src="/app.js"></script>
 </body>
 </html>

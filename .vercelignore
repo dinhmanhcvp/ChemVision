@@ -4,6 +4,7 @@ chem_vision/demo.py
 chem_vision/app.py
 chem_vision/speech.py
 scripts
+docs
 *.docx
 *.md
 requirements-desktop.txt

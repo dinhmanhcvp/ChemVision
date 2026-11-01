@@ -3,32 +3,46 @@
 const $ = (id) => document.getElementById(id);
 const LOG_KEY = "cv_logs";
 const CODE_KEY = "cv_code";
+const CLASS_TEACHER_KEY = "cv_class_teacher";
+const CLASS_CODE_KEY = "cv_class_code";
 const MAX_SIDE = 1280;
 
 let meta = null;
 let stream = null;
 let fileImage = null;      // ảnh người dùng chọn (khi không dùng camera)
 let busy = false;
-let challenge = null;      // { name, tasks: [...], index }
+let challenge = null;      // { name, tasks: [...], index, style }
 let suggestions = [];
 let sugIndex = 0;
 let lastCsv = "";
+let qualityTimer = null;
+let dashTimer = null;
 
 /* ------------------------------------------------------------------ tiện ích */
 function store(kind) {
   try { return kind === "session" ? window.sessionStorage : window.localStorage; } catch (e) { return null; }
 }
-function loadLogs() {
-  try { return JSON.parse(store("local").getItem(LOG_KEY)) || []; } catch (e) { return []; }
+function getJson(kind, key, fallback) {
+  try { return JSON.parse(store(kind).getItem(key)) ?? fallback; } catch (e) { return fallback; }
 }
+function setJson(kind, key, value) {
+  try { const s = store(kind); if (value === null) s.removeItem(key); else s.setItem(key, JSON.stringify(value)); } catch (e) { /* trình duyệt chặn lưu */ }
+}
+const loadLogs = () => getJson("local", LOG_KEY, []);
 function saveLogs(rows) {
-  try { store("local").setItem(LOG_KEY, JSON.stringify(rows)); } catch (e) { /* trình duyệt chặn lưu: bỏ qua */ }
+  setJson("local", LOG_KEY, rows);
   $("log-count").textContent = rows.length ? rows.length + " lượt đã ghi" : "";
 }
 function setResult(text, cls) {
   const r = $("result");
   r.textContent = text;
   r.className = "result" + (cls ? " " + cls : "");
+}
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  Object.assign(node, props || {});
+  for (const c of children) node.append(c);
+  return node;
 }
 function toSpeech(text) {
   return text.replace(/\b[A-Z][a-z]?\s*\(([^()0-9A-Z]+)\)/g, "$1").replace(/\s*\((?:[A-Z][A-Za-z0-9()]*)\)/g, "");
@@ -68,9 +82,82 @@ async function init() {
     setResult("Không tải được thông tin từ máy chủ. Hãy tải lại trang.", "bad");
     return;
   }
-  for (const name of Object.keys(meta.decks)) $("deck").add(new Option(name, name));
+  $("grade").add(new Option("Tất cả các lớp", "0"));
+  for (const g of Object.keys(meta.grades).sort()) $("grade").add(new Option(meta.grades[g], g));
+  fillDecks();
   for (const s of meta.scenarios) $("scenario").add(new Option(s, s));
+  for (const q of meta.equations) $("eq-select").add(new Option((q.id + 1) + ". " + q.reactants.join(" + ") + " → " + q.products.join(" + "), String(q.id)));
+  buildEquationForm();
   $("meta-line").textContent = meta.substances + " chất trong cơ sở dữ liệu";
+  initClassroom();
+}
+function fillDecks() {
+  const grade = $("grade").value;
+  $("deck").replaceChildren();
+  for (const name of Object.keys(meta.decks)) {
+    if (grade === "0" || String(meta.deck_info[name].grade) === grade) $("deck").add(new Option(name, name));
+  }
+  $("ch-start").disabled = !$("deck").options.length;
+}
+
+/* ------------------------------------------------------------------ chất lượng ảnh trực tiếp (cùng ngưỡng với máy chủ) */
+function measureQuality(source, w, h) {
+  const scale = Math.min(1, 640 / Math.max(w, h));
+  const cw = Math.max(Math.round(w * scale), 8), ch = Math.max(Math.round(h * scale), 8);
+  const c = document.createElement("canvas");
+  c.width = cw; c.height = ch;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, cw, ch);
+  const d = ctx.getImageData(0, 0, cw, ch).data;
+  const gray = new Float32Array(cw * ch);
+  let sum = 0, glare = 0;
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const v = 0.299 * r + 0.587 * g + 0.114 * b;
+    gray[p] = v; sum += v;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx >= 250 && (mx === 0 ? 0 : (mx - mn) / mx * 255) < 40) glare++;
+  }
+  const n = cw * ch, mean = sum / n;
+  let varSum = 0;
+  for (let i = 0; i < n; i++) varSum += (gray[i] - mean) ** 2;
+  let lsum = 0, lsq = 0, cnt = 0;
+  for (let y = 1; y < ch - 1; y++) for (let x = 1; x < cw - 1; x++) {
+    const i = y * cw + x;
+    const lap = gray[i - 1] + gray[i + 1] + gray[i - cw] + gray[i + cw] - 4 * gray[i];
+    lsum += lap; lsq += lap * lap; cnt++;
+  }
+  return { brightness: mean, contrast: Math.sqrt(varSum / n), glare: glare / n, sharpness: lsq / cnt - (lsum / cnt) ** 2 };
+}
+function qualityMessage(m) {
+  const bad = [], warn = [];
+  const add = (text, severe) => (severe ? bad : warn).push(text);
+  if (m.brightness < 70) add("Ảnh tối: bật thêm đèn.", m.brightness < 40);
+  else if (m.brightness > 210) add("Ảnh sáng gắt: giảm đèn.", m.brightness > 235);
+  if (m.sharpness < 150) add("Ảnh mờ: giữ camera yên.", m.sharpness < 20);
+  if (m.glare > 0.10) add("Có vùng lóa: đổi hướng đèn.", m.glare > 0.40);
+  if (m.contrast < 22) add("Thiếu tương phản: dùng nền trơn.", m.contrast < 10);
+  return { bad, warn };
+}
+function startQualityWatch() {
+  stopQualityWatch();
+  const tick = () => {
+    const v = $("video");
+    if (!stream || !v.videoWidth) return;
+    const q = qualityMessage(measureQuality(v, v.videoWidth, v.videoHeight));
+    const box = $("live-quality");
+    if (q.bad.length) { box.textContent = q.bad.join(" "); box.className = "quality bad"; }
+    else if (q.warn.length) { box.textContent = q.warn.join(" "); box.className = "quality warn"; }
+    else { box.textContent = "Ánh sáng và độ nét tốt."; box.className = "quality good"; }
+  };
+  tick();
+  qualityTimer = setInterval(tick, 900);
+}
+function stopQualityWatch() {
+  if (qualityTimer) clearInterval(qualityTimer);
+  qualityTimer = null;
+  $("live-quality").textContent = "";
+  $("live-quality").className = "quality";
 }
 
 /* ------------------------------------------------------------------ camera và ảnh */
@@ -97,6 +184,7 @@ async function toggleCamera() {
   $("stage").classList.add("live");
   $("btn-camera").textContent = "Tắt camera";
   $("btn-check").disabled = false;
+  startQualityWatch();
   try {
     const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
     const sel = $("camera-select");
@@ -110,6 +198,7 @@ async function toggleCamera() {
 function stopCamera() {
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
+  stopQualityWatch();
   $("video").srcObject = null;
   $("stage").classList.remove("live");
   $("btn-camera").textContent = "Bật camera";
@@ -125,6 +214,10 @@ function loadFile(file) {
     drawSource(img, img.naturalWidth, img.naturalHeight);
     $("stage").classList.add("shot");
     $("btn-check").disabled = false;
+    const q = qualityMessage(measureQuality(img, img.naturalWidth, img.naturalHeight));
+    const box = $("live-quality");
+    box.textContent = q.bad.concat(q.warn).join(" ") || "Ánh sáng và độ nét tốt.";
+    box.className = "quality " + (q.bad.length ? "bad" : q.warn.length ? "warn" : "good");
     URL.revokeObjectURL(url);
   };
   img.onerror = () => { setResult("Không đọc được ảnh này. Hãy chọn ảnh JPG hoặc PNG.", "warn"); URL.revokeObjectURL(url); };
@@ -152,8 +245,9 @@ function overlay(out) {
   const c = $("snap");
   const ctx = c.getContext("2d");
   const pts = {};
+  const fontPx = Math.max(14, Math.round(c.width / 45));
   ctx.lineWidth = Math.max(2, c.width / 400);
-  ctx.font = "bold " + Math.max(14, Math.round(c.width / 45)) + "px system-ui, sans-serif";
+  ctx.font = "bold " + fontPx + "px system-ui, sans-serif";
   for (const card of out.cards || []) {
     if (!card.box_2d) continue;
     const [y0, x0, y1, x1] = card.box_2d;
@@ -161,14 +255,20 @@ function overlay(out) {
     ctx.strokeStyle = "#ff8c00";
     ctx.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
     ctx.fillStyle = "#e11d48";
-    ctx.fillText(String(card.symbol), X0 + 4, Y0 + parseInt(ctx.font.match(/(\d+)px/)[1], 10) + 2);
+    ctx.fillText(String(card.symbol), X0 + 4, Y0 + fontPx + 2);
     pts[card.id] = [(X0 + X1) / 2, (Y0 + Y1) / 2];
   }
   ctx.strokeStyle = "#16a34a";
   ctx.lineWidth *= 2;
+  const ionic = new Set();
+  for (const cl of out.clusters || []) if (cl.kind === "MATCH" && cl.substance && cl.substance.ionic) (cl.cards || []).forEach((id) => ionic.add(String(id)));
   for (const e of out.connections || []) {
-    if (pts[e.a] && pts[e.b]) { ctx.beginPath(); ctx.moveTo(...pts[e.a]); ctx.lineTo(...pts[e.b]); ctx.stroke(); }
+    if (pts[e.a] && pts[e.b]) {
+      ctx.setLineDash(ionic.has(String(e.a)) && ionic.has(String(e.b)) ? [10, 8] : []);   // nét đứt: liên kết ion theo quy ước ghép cặp
+      ctx.beginPath(); ctx.moveTo(...pts[e.a]); ctx.lineTo(...pts[e.b]); ctx.stroke();
+    }
   }
+  ctx.setLineDash([]);
   $("stage").classList.add("shot");
 }
 
@@ -191,7 +291,7 @@ async function analyze(payload, withOverlay) {
   try {
     const { status, json } = await api("/api/analyze", payload);
     if (status !== 200 || !json.ok) {
-      const msg = status === 401 ? "Mã truy cập sai hoặc chưa nhập. Hãy nhập ở mục Thiết lập." : (json.error || "Có lỗi xảy ra.");
+      const msg = status === 401 ? "Thẻ này chưa có mã vuông nên cần mã truy cập. Hãy nhập ở mục Thiết lập, hoặc dùng bộ thẻ in có mã." : (json.error || "Có lỗi xảy ra.");
       setResult(msg, "bad");
       return;
     }
@@ -211,17 +311,31 @@ function render(out, task, withOverlay) {
   if (task && out.attempt) {
     text = out.attempt.message;
     cls = out.attempt.correct ? "ok" : (out.status === "OK" ? "bad" : "warn");
-    recordLog(out, task);
+    const row = recordLog(out, task);
     applyAttempt(out, task);
+    if (row) sendToClass(row);
     if (out.attempt.correct) text += "\n\n" + (challenge.index >= challenge.tasks.length ? summaryText() : promptText());
     refreshChallenge();
   }
   setResult(text, cls);
+  showWhy(out);
+  const qn = $("quality-note");
+  const warnings = out.quality && out.quality.warnings ? out.quality.warnings : [];
+  qn.hidden = !warnings.length;
+  qn.className = "quality warn";
+  qn.textContent = warnings.length ? "Lưu ý về ảnh: " + warnings.join(" ") : "";
   speak(text);
   if (withOverlay && out.cards && out.cards.length) overlay(out);
-  $("meta-line").textContent = [out.model, out.links_source === "geometry" ? "liên kết đo bằng hình học" : ""].filter(Boolean).join(" · ");
+  $("meta-line").textContent = [out.model, out.links_source === "geometry" ? "liên kết đo bằng hình học" : out.links_source === "markers" ? "đọc từ mã vuông" : ""].filter(Boolean).join(" · ");
   const cluster = out.status === "OK" ? out.clusters.find((c) => c.kind === "SUGGEST") : null;
   if (cluster) { suggestions = cluster.suggestions; sugIndex = 0; askSuggestion(); }
+}
+function showWhy(out) {
+  const lines = [];
+  for (const c of out.clusters || []) for (const t of c.explain || []) lines.push(t);
+  $("why-list").replaceChildren(...lines.map((t) => el("li", { textContent: t })));
+  $("why").hidden = !lines.length;
+  $("why").open = false;
 }
 
 /* ------------------------------------------------------------------ gợi ý "Có phải bạn muốn ghép …?" */
@@ -253,7 +367,8 @@ function answerSuggestion(yes) {
 const currentTask = () => (challenge && challenge.index < challenge.tasks.length ? challenge.tasks[challenge.index] : null);
 const promptText = () => {
   const t = currentTask();
-  return "Câu " + (challenge.index + 1) + "/" + challenge.tasks.length + ": hãy ghép phân tử " + t.name + " (" + t.formula + ").";
+  const head = "Câu " + (challenge.index + 1) + "/" + challenge.tasks.length + ": ";
+  return head + (t.prompt ? t.prompt : "hãy ghép phân tử " + t.name + " (" + t.formula + ").");
 };
 function summaryText() {
   const T = challenge.tasks;
@@ -270,16 +385,15 @@ function refreshChallenge() {
   $("ch-end").disabled = !active;
   $("ch-hint").disabled = !t;
   $("ch-skip").disabled = !t;
-  $("ch-start").disabled = false;
   if (!active) { $("ch-task").textContent = "Chọn bộ đề rồi nhấn Bắt đầu."; $("ch-score").textContent = ""; return; }
   $("ch-task").textContent = t ? promptText() : "Đã xong bộ đề. " + summaryText();
   $("ch-score").textContent = "Điểm: " + challenge.tasks.reduce((a, x) => a + x.score, 0);
 }
 function startChallenge() {
   if (!meta || !$("deck").value) return;
-  const deck = meta.decks[$("deck").value];
-  challenge = { name: $("deck").value, index: 0,
-    tasks: deck.map((c) => ({ key: c.key, name: c.name, formula: c.formula, attempts: 0, hints: 0, solved: false, skipped: false, score: 0 })) };
+  const name = $("deck").value;
+  challenge = { name, index: 0, style: meta.deck_info[name].style,
+    tasks: meta.decks[name].map((c) => ({ key: c.key, name: c.name, formula: c.formula, prompt: c.prompt || null, attempts: 0, hints: 0, solved: false, skipped: false, score: 0 })) };
   refreshChallenge();
   setResult("Bắt đầu thử thách. " + promptText());
   speak(promptText());
@@ -320,7 +434,7 @@ function skip() {
 
 /* ------------------------------------------------------------------ nhật ký và báo cáo */
 function recordLog(out, task) {
-  if (out.status !== "OK") return;
+  if (out.status !== "OK") return null;
   const ok = out.clusters.find((c) => c.kind === "MATCH" && c.substance.key === task.key);
   const r = ok || out.clusters[0];
   let missing = {}, extra = {}, bonds = "";
@@ -334,13 +448,15 @@ function recordLog(out, task) {
   const pad = (n) => String(n).padStart(2, "0");
   const d = new Date();
   const fmt = (o) => Object.entries(o).sort().map(([k, n]) => k + "x" + n).join(" ");
-  const rows = loadLogs();
-  rows.push({
+  const row = {
     "thời gian": d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()),
     "nhóm": $("group").value.trim() || "Nhóm 1", "chất mục tiêu": task.key, "kết quả": outcome,
     "thẻ thiếu": fmt(missing), "thẻ thừa": fmt(extra), "liên kết sai": bonds,
-  });
+  };
+  const rows = loadLogs();
+  rows.push(row);
   saveLogs(rows.slice(-5000));
+  return row;
 }
 async function showReport() {
   const { status, json } = await api("/api/report", { rows: loadLogs() });
@@ -358,6 +474,136 @@ function downloadCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+/* ------------------------------------------------------------------ cân bằng phương trình (lớp 8) */
+function buildEquationForm() {
+  const q = meta.equations[Number($("eq-select").value)];
+  const parts = [];
+  const species = (list, offset) => list.forEach((f, i) => {
+    if (i) parts.push(el("span", { className: "op", textContent: "+" }));
+    parts.push(el("input", { type: "number", min: "1", max: "20", value: "1", id: "eq-c" + (offset + i), ariaLabel: "Hệ số của " + f }));
+    parts.push(el("span", { textContent: f }));
+  });
+  species(q.reactants, 0);
+  parts.push(el("span", { className: "op", textContent: "→" }));
+  species(q.products, q.reactants.length);
+  $("eq-form").replaceChildren(...parts);
+  $("eq-msg").textContent = "Điền hệ số vào từng ô, mỗi hệ số từ 1 đến 20.";
+  $("eq-msg").className = "result small";
+}
+const eqCoefficients = () => {
+  const q = meta.equations[Number($("eq-select").value)];
+  return Array.from({ length: q.reactants.length + q.products.length }, (_, i) => Number($("eq-c" + i).value));
+};
+async function checkEquation() {
+  const id = Number($("eq-select").value);
+  const { status, json } = await api("/api/equation", { id, coefficients: eqCoefficients() });
+  if (status !== 200) { $("eq-msg").textContent = json.error || "Không kiểm tra được."; $("eq-msg").className = "result small warn"; return; }
+  $("eq-msg").textContent = json.message;
+  $("eq-msg").className = "result small " + (json.balanced && json.simplest ? "ok" : json.balanced ? "warn" : "bad");
+  speak(json.message);
+}
+async function revealEquation() {
+  const id = Number($("eq-select").value);
+  const { status, json } = await api("/api/equation", { id, reveal: true });
+  if (status !== 200) return;
+  json.coefficients.forEach((c, i) => { $("eq-c" + i).value = String(c); });
+  $("eq-msg").textContent = "Đáp án: " + json.equation;
+  $("eq-msg").className = "result small";
+}
+
+/* ------------------------------------------------------------------ lớp học trực tuyến */
+function initClassroom() {
+  if (!meta.classroom) { $("class-off").hidden = false; $("class-box").hidden = true; return; }
+  const teacher = getJson("session", CLASS_TEACHER_KEY, null);
+  if (teacher) showTeacherInfo(teacher);
+  const code = getJson("session", CLASS_CODE_KEY, null);
+  if (code) { $("class-code").value = code; showJoined(code); }
+}
+function classMsg(text, cls) { const m = $("class-msg"); m.textContent = text; m.className = "note" + (cls ? " " + cls : ""); }
+function showTeacherInfo(t) {
+  $("class-info").hidden = false;
+  $("class-info").textContent = "Mã lớp: " + t.code + " (giáo viên giữ, học sinh nhập mã này). Dữ liệu tự xóa sau 24 giờ.";
+  $("class-open").hidden = false;
+}
+function showJoined(code) {
+  $("class-leave").hidden = false;
+  classMsg("Đang ở lớp " + code + ". Kết quả thử thách của nhóm sẽ gửi lên cho giáo viên (không kèm ảnh hay tên).", "good");
+}
+async function createClass() {
+  const { status, json } = await api("/api/classroom", { action: "create", name: "Lớp học" });
+  if (status !== 200) { classMsg(json.error || "Không tạo được lớp.", "bad"); return; }
+  const t = { code: json.code, key: json.teacher_key };
+  setJson("session", CLASS_TEACHER_KEY, t);
+  showTeacherInfo(t);
+  classMsg("Đã tạo lớp. Hãy đọc mã " + t.code + " cho học sinh.", "good");
+  openDashboard();
+}
+async function joinClass() {
+  const code = $("class-code").value.trim().toUpperCase();
+  if (code.length !== 6) { classMsg("Mã lớp gồm 6 kí tự.", "warn"); return; }
+  const { status, json } = await api("/api/classroom", { action: "join", code });
+  if (status !== 200) { classMsg(json.error || "Không vào được lớp.", "bad"); return; }
+  setJson("session", CLASS_CODE_KEY, code);
+  showJoined(code);
+}
+function leaveClass() {
+  setJson("session", CLASS_CODE_KEY, null);
+  $("class-leave").hidden = true;
+  classMsg("Đã rời lớp.");
+}
+async function sendToClass(row) {
+  const code = getJson("session", CLASS_CODE_KEY, null);
+  if (!code) return;
+  try {
+    const { status, json } = await api("/api/classroom", { action: "submit", code, row });
+    if (status !== 200) classMsg("Không gửi được kết quả lên lớp: " + (json.error || status), "warn");
+  } catch (e) { classMsg("Mất kết nối, kết quả vẫn lưu trong trình duyệt.", "warn"); }
+}
+async function refreshDashboard() {
+  const t = getJson("session", CLASS_TEACHER_KEY, null);
+  if (!t) return;
+  const { status, json } = await api("/api/classroom", { action: "state", code: t.code, teacher_key: t.key });
+  if (status !== 200) { $("class-sub").textContent = json.error || "Không tải được dữ liệu lớp."; return; }
+  $("class-title").textContent = "Bảng điều khiển lớp " + json.code;
+  $("class-sub").textContent = json["tổng lượt"] === 0 ? "Chưa có nhóm nào gửi kết quả. Mã lớp: " + json.code : "Tổng " + json["tổng lượt"] + " lượt · tự làm mới mỗi 5 giây";
+  const head = ["Nhóm", "Đã xong", "Lượt", "Câu gần nhất", "Kết quả gần nhất", "Cách đây"];
+  $("class-table").tHead.replaceChildren(el("tr", {}, ...head.map((h) => el("th", { textContent: h }))));
+  $("class-table").tBodies[0].replaceChildren(...json["nhóm"].map((g) => {
+    const tr = el("tr", { className: g["kẹt"] ? "stuck" : (g["kết quả gần nhất"] === "ĐÚNG" ? "done" : "") },
+      el("td", { textContent: g["nhóm"] + (g["kẹt"] ? " (kẹt)" : "") }), el("td", { textContent: String(g["đã xong"]) }),
+      el("td", { textContent: String(g["lượt"]) }), el("td", { textContent: g["công thức"] }),
+      el("td", { textContent: g["kết quả gần nhất"] }), el("td", { textContent: g["giây trước"] + " giây" }));
+    return tr;
+  }));
+  const extra = $("class-extra");
+  extra.replaceChildren();
+  if (json["câu khó"].length) {
+    extra.append(el("h3", { textContent: "Câu sai nhiều nhất" }),
+      el("ul", {}, ...json["câu khó"].map((x) => el("li", { textContent: x["tên"] + " (" + x["công thức"] + "): sai " + x["sai"] + "/" + x["lượt"] + " lượt" }))));
+  }
+  if (json["quan niệm sai"].length) {
+    extra.append(el("h3", { textContent: "Quan niệm sai thường gặp" }),
+      el("ul", {}, ...json["quan niệm sai"].map((x) => el("li", { textContent: x["nhãn"] + " (" + x["lượt"] + " lượt). " + x["cách xử lý"] }))));
+  }
+}
+async function openDashboard() {
+  await refreshDashboard();
+  if (!$("class-dialog").open) $("class-dialog").showModal();
+  clearInterval(dashTimer);
+  dashTimer = setInterval(refreshDashboard, 5000);
+}
+function closeDashboard() { clearInterval(dashTimer); dashTimer = null; $("class-dialog").close(); }
+async function endClass() {
+  const t = getJson("session", CLASS_TEACHER_KEY, null);
+  if (!t || !confirm("Kết thúc lớp và xóa toàn bộ dữ liệu lớp trên máy chủ?")) return;
+  await api("/api/classroom", { action: "end", code: t.code, teacher_key: t.key });
+  setJson("session", CLASS_TEACHER_KEY, null);
+  $("class-info").hidden = true;
+  $("class-open").hidden = true;
+  closeDashboard();
+  classMsg("Đã kết thúc lớp và xóa dữ liệu.");
+}
+
 /* ------------------------------------------------------------------ nối sự kiện */
 $("btn-camera").addEventListener("click", toggleCamera);
 $("camera-select").addEventListener("change", async () => { stopCamera(); await toggleCamera(); });
@@ -366,10 +612,21 @@ $("btn-check").addEventListener("click", () => { const img = grab(); if (img) an
 $("btn-demo").addEventListener("click", () => analyze({ demo: $("scenario").value }, false));
 $("sg-yes").addEventListener("click", () => answerSuggestion(true));
 $("sg-no").addEventListener("click", () => answerSuggestion(false));
+$("grade").addEventListener("change", fillDecks);
 $("ch-start").addEventListener("click", startChallenge);
 $("ch-end").addEventListener("click", endChallenge);
 $("ch-hint").addEventListener("click", hint);
 $("ch-skip").addEventListener("click", skip);
+$("eq-select").addEventListener("change", buildEquationForm);
+$("eq-check").addEventListener("click", checkEquation);
+$("eq-reveal").addEventListener("click", revealEquation);
+$("class-create").addEventListener("click", createClass);
+$("class-open").addEventListener("click", openDashboard);
+$("class-join").addEventListener("click", joinClass);
+$("class-leave").addEventListener("click", leaveClass);
+$("class-end").addEventListener("click", endClass);
+$("class-close").addEventListener("click", closeDashboard);
+$("class-dialog").addEventListener("close", () => { clearInterval(dashTimer); dashTimer = null; });
 $("btn-report").addEventListener("click", showReport);
 $("btn-csv").addEventListener("click", downloadCsv);
 $("btn-close").addEventListener("click", () => $("report-dialog").close());

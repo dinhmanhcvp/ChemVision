@@ -243,6 +243,9 @@ class App:
             if attempt.correct:
                 message += "\n\n" + self._next_task_text()
             self._refresh_task()
+        quality = (getattr(self.recognizer, "last_data", None) or {}).get("quality") or {}
+        if analysis.status == "OK" and quality.get("warnings"):
+            message += "\n\nLưu ý về ảnh: " + " ".join(quality["warnings"])
         self.set_result(message, tag)
         self.speak(spoken)
         self._offer_suggestions(analysis)
@@ -363,7 +366,7 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
     import json
     import cv2
     from .geometry import annotate
-    from .recognizer import GeminiRest, load_api_key
+    from .recognizer import GeminiRest, MarkerRecognizer, load_api_key
 
     frame = cv2.imread(path)
     if frame is None:
@@ -371,9 +374,8 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
         return 1
     key = load_api_key(os.path.join(here, "chem_vision"), here)
     if not key:
-        print("Chưa có khóa API: điền GEMINI_API_KEY vào chem_vision/.env")
-        return 1
-    rec = GeminiRest(key, link_mode=link_mode)
+        print("Chưa có khóa API: chỉ đọc được thẻ có mã đánh dấu (điền GEMINI_API_KEY vào chem_vision/.env để đọc thẻ thường)")
+    rec = GeminiRest(key, link_mode=link_mode) if key else MarkerRecognizer()
     try:
         raw = rec.recognize(frame)
     except GaveUp as err:
@@ -393,7 +395,7 @@ def run_image(path, here, debug_out=None, link_mode="geometry") -> int:
 
 def main(argv=None):
     import argparse
-    from .recognizer import GeminiRest, load_api_key
+    from .recognizer import GeminiRest, MarkerRecognizer, load_api_key
     from .speech import Speaker
 
     ap = argparse.ArgumentParser(description="CHEM VISION")
@@ -423,8 +425,8 @@ def main(argv=None):
                 recognizer, mode = GeminiRest(key), "Gemini + camera"
             except Exception as err:
                 note = f"Không khởi tạo được Gemini ({err})"
-        elif camera and not key:
-            note = "Chưa có khóa API (đặt GEMINI_API_KEY hoặc tệp api_key.txt)"
+        elif camera and not key:      # không có khóa: vẫn dùng được với thẻ có mã đánh dấu, hoàn toàn ngoại tuyến
+            recognizer, mode = MarkerRecognizer(), "Mã đánh dấu (ngoại tuyến, thẻ không có mã sẽ không nhận ra)"
     if recognizer is None:
         recognizer, camera = DemoRecognizer(), None
         mode = "Chế độ thử (giả lập)" + (f" – {note}" if note else "")

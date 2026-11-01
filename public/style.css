@@ -48,8 +48,30 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .suggest { margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px dashed var(--line); }
 .suggest p { margin: 0; font-weight: 600; }
 .task { font-weight: 600; margin: 12px 0 0; }
-dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); max-width: min(640px, calc(100vw - 32px)); }
+dialog { border: 1px solid var(--line); width: min(760px, calc(100vw - 32px)); border-radius: 12px; background: var(--surface); color: var(--text); max-width: min(640px, calc(100vw - 32px)); }
 dialog pre { white-space: pre-wrap; font: inherit; margin: 0; }
 dialog::backdrop { background: rgba(0, 0, 0, .5); }
 .foot { padding-top: 8px; padding-bottom: 24px; color: var(--muted); font-size: .8rem; }
 @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.quality { margin: 8px 0 0; font-size: .85rem; min-height: 1.2em; color: var(--muted); }
+.quality.warn { color: var(--warn); }
+.quality.bad { color: var(--bad); }
+.quality.good { color: var(--ok); }
+details { margin-top: 10px; }
+summary { cursor: pointer; font-weight: 600; }
+details ul { margin: 8px 0 0; padding-left: 20px; }
+details li { margin-bottom: 4px; }
+.eq-form { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; margin-top: 12px; font-size: 1.05rem; }
+.eq-form input { width: 56px; padding: 6px; text-align: center; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-height: 36px; }
+.eq-form .op { padding: 0 4px; color: var(--muted); }
+.result.small { min-height: 0; margin-top: 12px; font-size: .95rem; }
+.table-wrap { overflow-x: auto; margin: 8px 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+th { background: var(--bg); }
+tr.stuck td { background: var(--bad-bg); color: var(--bad); font-weight: 600; }
+tr.done td { background: var(--ok-bg); }
+#class-extra h3 { margin: 12px 0 4px; font-size: .95rem; }
+#class-extra ul { margin: 0; padding-left: 20px; }
+#class-code { width: 150px; text-transform: uppercase; letter-spacing: .1em; }
+a { color: var(--accent); }

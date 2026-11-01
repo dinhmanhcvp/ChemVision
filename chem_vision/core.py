@@ -9,7 +9,9 @@ import hashlib
 import json
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+
+from .curriculum import ATOMIC_MASS, ELEMENT_NAMES, format_mass, molecular_mass
 
 MIN_CONFIDENCE = 0.6
 MAX_D = 3            # tổng thẻ thiếu + thừa tối đa của một gợi ý
@@ -24,13 +26,6 @@ ELEMENTS = set(
     "Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl "
     "Mc Lv Ts Og".split()
 )
-
-ELEMENT_NAMES = {
-    "H": "hiđro", "O": "oxi", "N": "nitơ", "C": "cacbon", "S": "lưu huỳnh",
-    "Cl": "clo", "Na": "natri", "K": "kali", "Ca": "canxi", "Mg": "magie",
-    "Cu": "đồng", "Zn": "kẽm", "Fe": "sắt", "P": "photpho", "Au": "vàng",
-    "Al": "nhôm", "Ag": "bạc",
-}
 
 
 # --------------------------------------------------------------------------- đồ thị
@@ -151,6 +146,8 @@ class Substance:
     name: str
     group: str
     graph: Graph
+    grade: int = 7          # lớp học chất này (6 đến 9)
+    ionic: bool = False     # hợp chất ion: quy ước ghép cặp, thực tế là mạng tinh thể
 
 
 def _s(key, formula, name, group, atoms, bonds):
@@ -196,6 +193,80 @@ DATABASE: tuple[Substance, ...] = (
     _s("CH3OCH3", "CH3OCH3", "đimetyl ete", "hợp chất", "C C O H H H H H H",
        [(0, 2), (1, 2), (0, 3), (0, 4), (0, 5), (1, 6), (1, 7), (1, 8)]),
     _s("H2O2", "H2O2", "hiđro peoxit", "hợp chất", "O O H H", [(0, 1), (0, 2), (1, 3)]),
+)
+
+_BASE_COUNT = len(DATABASE)
+
+def _more():
+    S = _s
+    st = _star
+    ph = [(0, 1), (0, 2), (1, 3), (2, 4)]                       # M(OH)2
+    m3 = [(0, 1), (0, 2), (0, 3), (1, 4), (2, 5), (3, 6)]        # M(OH)3
+    sulfate = st(0, 4)
+    rows = [
+        # ---- lớp 8: oxit
+        S("Na2O", "Na2O", "natri oxit", "oxit", "Na Na O", [(0, 2), (1, 2)]),
+        S("K2O", "K2O", "kali oxit", "oxit", "K K O", [(0, 2), (1, 2)]),
+        S("Fe2O3", "Fe2O3", "sắt(III) oxit", "oxit", "Fe Fe O O O", [(0, 2), (1, 2), (0, 3), (1, 4)]),
+        S("Al2O3", "Al2O3", "nhôm oxit", "oxit", "Al Al O O O", [(0, 2), (1, 2), (0, 3), (1, 4)]),
+        S("P2O5", "P2O5", "điphotpho pentaoxit", "oxit", "P P O O O O O", [(0, 2), (1, 2), (0, 3), (0, 4), (1, 5), (1, 6)]),
+        # ---- lớp 8: axit, bazơ
+        S("H2S", "H2S", "hiđro sunfua", "axit", "S H H", st(0, 2)),
+        S("H2CO3", "H2CO3", "axit cacbonic", "axit", "C O O O H H", st(0, 3) + [(1, 4), (2, 5)]),
+        S("Mg(OH)2", "Mg(OH)2", "magie hiđroxit", "bazơ", "Mg O O H H", ph),
+        S("Cu(OH)2", "Cu(OH)2", "đồng(II) hiđroxit", "bazơ", "Cu O O H H", ph),
+        S("Ba(OH)2", "Ba(OH)2", "bari hiđroxit", "bazơ", "Ba O O H H", ph),
+        S("Fe(OH)3", "Fe(OH)3", "sắt(III) hiđroxit", "bazơ", "Fe O O O H H H", m3),
+        S("Al(OH)3", "Al(OH)3", "nhôm hiđroxit", "bazơ", "Al O O O H H H", m3),
+        # ---- lớp 8: muối, phân bón
+        S("KCl", "KCl", "kali clorua", "muối", "K Cl", [(0, 1)]),
+        S("CaCl2", "CaCl2", "canxi clorua", "muối", "Ca Cl Cl", st(0, 2)),
+        S("MgCl2", "MgCl2", "magie clorua", "muối", "Mg Cl Cl", st(0, 2)),
+        S("ZnCl2", "ZnCl2", "kẽm clorua", "muối", "Zn Cl Cl", st(0, 2)),
+        S("AlCl3", "AlCl3", "nhôm clorua", "muối", "Al Cl Cl Cl", st(0, 3)),
+        S("FeCl2", "FeCl2", "sắt(II) clorua", "muối", "Fe Cl Cl", st(0, 2)),
+        S("FeCl3", "FeCl3", "sắt(III) clorua", "muối", "Fe Cl Cl Cl", st(0, 3)),
+        S("AgCl", "AgCl", "bạc clorua", "muối", "Ag Cl", [(0, 1)]),
+        S("Na2SO4", "Na2SO4", "natri sunfat", "muối", "S O O O O Na Na", sulfate + [(1, 5), (2, 6)]),
+        S("CuSO4", "CuSO4", "đồng(II) sunfat", "muối", "S O O O O Cu", sulfate + [(1, 5), (2, 5)]),
+        S("BaSO4", "BaSO4", "bari sunfat", "muối", "S O O O O Ba", sulfate + [(1, 5), (2, 5)]),
+        S("CaSO4", "CaSO4", "canxi sunfat", "muối", "S O O O O Ca", sulfate + [(1, 5), (2, 5)]),
+        S("KNO3", "KNO3", "kali nitrat", "muối", "N O O O K", st(0, 3) + [(1, 4)]),
+        S("NaNO3", "NaNO3", "natri nitrat", "muối", "N O O O Na", st(0, 3) + [(1, 4)]),
+        S("AgNO3", "AgNO3", "bạc nitrat", "muối", "N O O O Ag", st(0, 3) + [(1, 4)]),
+        S("CO(NH2)2", "CO(NH2)2", "urê", "hợp chất", "C O N N H H H H",
+          [(0, 1), (0, 2), (0, 3), (2, 4), (2, 5), (3, 6), (3, 7)]),
+        S("Cl2", "Cl2", "clo", "đơn chất", "Cl Cl", [(0, 1)]),
+        S("O3", "O3", "ozon", "đơn chất", "O O O", [(0, 1), (1, 2)]),
+        # ---- lớp 9: hợp chất hữu cơ
+        S("C2H6", "C2H6", "etan", "hiđrocacbon", "C C H H H H H H", [(0, 1), (0, 2), (0, 3), (0, 4), (1, 5), (1, 6), (1, 7)]),
+        S("C2H4", "C2H4", "etilen", "hiđrocacbon", "C C H H H H", [(0, 1), (0, 2), (0, 3), (1, 4), (1, 5)]),
+        S("C2H2", "C2H2", "axetilen", "hiđrocacbon", "C C H H", [(0, 1), (0, 2), (1, 3)]),
+        S("C3H8", "C3H8", "propan", "hiđrocacbon", "C C C H H H H H H H H",
+          [(0, 1), (1, 2), (0, 3), (0, 4), (0, 5), (1, 6), (1, 7), (2, 8), (2, 9), (2, 10)]),
+        S("C4H10", "C4H10", "butan", "hiđrocacbon", "C C C C H H H H H H H H H H",
+          [(0, 1), (1, 2), (2, 3), (0, 4), (0, 5), (0, 6), (1, 7), (1, 8), (2, 9), (2, 10), (3, 11), (3, 12), (3, 13)]),
+        S("C4H10-iso", "C4H10", "isobutan", "hiđrocacbon", "C C C C H H H H H H H H H H",
+          [(0, 1), (0, 2), (0, 3), (0, 4), (1, 5), (1, 6), (1, 7), (2, 8), (2, 9), (2, 10), (3, 11), (3, 12), (3, 13)]),
+        S("C6H6", "C6H6", "benzen", "hiđrocacbon", "C C C C C C H H H H H H",
+          [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)] + [(i, 6 + i) for i in range(6)]),
+        S("CH3OH", "CH3OH", "metanol", "dẫn xuất", "C O H H H H", [(0, 1), (0, 2), (0, 3), (0, 4), (1, 5)]),
+        S("CH3COOH", "CH3COOH", "axit axetic", "dẫn xuất", "C C O O H H H H",
+          [(0, 1), (1, 2), (1, 3), (3, 4), (0, 5), (0, 6), (0, 7)]),
+    ]
+    return tuple(rows)
+
+
+_IONIC = {"CaO", "MgO", "CuO", "ZnO", "FeO", "NaOH", "KOH", "Ca(OH)2", "NaCl", "Na2CO3", "NaHCO3", "CaCO3",
+          "Na2O", "K2O", "Fe2O3", "Al2O3", "Mg(OH)2", "Cu(OH)2", "Ba(OH)2", "Fe(OH)3", "Al(OH)3", "KCl", "CaCl2",
+          "MgCl2", "ZnCl2", "AlCl3", "FeCl2", "FeCl3", "AgCl", "Na2SO4", "CuSO4", "BaSO4", "CaSO4", "KNO3", "NaNO3",
+          "AgNO3"}
+_GRADE = {"C2H5OH": 9, "CH3OCH3": 9, "H2O2": 8}
+_GRADE_BY_GROUP = {"hiđrocacbon": 9, "dẫn xuất": 9}
+DATABASE = tuple(
+    replace(s, ionic=s.key in _IONIC,
+            grade=_GRADE.get(s.key, _GRADE_BY_GROUP.get(s.group, 8 if i >= _BASE_COUNT else 7)))
+    for i, s in enumerate(DATABASE + _more())
 )
 
 BY_KEY = {s.key: s for s in DATABASE}
@@ -283,6 +354,8 @@ def clean_molecule(raw) -> Cleaned:
     if data is None:
         return Cleaned({}, set(), problems=["không đọc được kết quả nhận diện từ AI"])
     out = Cleaned({}, set())
+    for msg in data.get("quality_problems") or []:        # ảnh quá tối, mờ, lóa: do phần kiểm tra chất lượng ảnh báo
+        out.problems.append(str(msg).rstrip("."))
     for item in data.get("cards") or []:
         if not isinstance(item, dict):
             continue
@@ -448,9 +521,22 @@ def _bond_phrase(c: Counter) -> str:
     return ", ".join(f"{a}–{b}" + (f" (×{n})" if n > 1 else "") for (a, b), n in sorted(c.items()))
 
 
+def _match_extra(sub: Substance, speech: bool) -> str:
+    comp = sub.graph.composition()
+    if any(sym not in ATOMIC_MASS for sym in comp):
+        return ""
+    mass = format_mass(molecular_mass(comp))
+    if sub.ionic:
+        if speech:
+            return f" Khối lượng công thức là {mass}. Đây là hợp chất ion."
+        return (f" Khối lượng công thức: {mass}. Lưu ý: {sub.name} là hợp chất ion, gồm các ion xếp thành mạng tinh thể, "
+                "không có phân tử riêng lẻ; ghép cặp chỉ là quy ước để kiểm tra.")
+    return f" Phân tử khối là {mass}." if speech else f" Phân tử khối: {mass}."
+
+
 def cluster_message(r: ClusterResult, speech: bool = False) -> str:
     if r.kind == "MATCH":
-        return f"Cấu trúc khớp với {sub_label(r.substance, speech)}."
+        return f"Cấu trúc khớp với {sub_label(r.substance, speech)}." + _match_extra(r.substance, speech)
     if r.kind == "WRONG_BONDS":
         names = " hoặc ".join(sub_label(s, speech) for s in r.same_composition)
         msg = f"Thành phần giống {names} nhưng cách ghép thẻ chưa đúng cấu trúc phân tử."

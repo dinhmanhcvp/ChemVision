@@ -15,8 +15,12 @@ import time
 from collections import Counter, defaultdict, deque
 
 from .core import (BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
+from .curriculum import DECK_GRADE, DECK_STYLE, GRADE_TITLES
 from .features import (BASE_SCORE, DECKS, HINT_PENALTY, MAX_HINTS, MIN_SOLVED, WRONG_PENALTY, Challenge,
-                       SessionLog, hint_for)
+                       SessionLog, hint_for, valence_prompt)
+from .markers import cards_from_markers
+from . import classroom, reactions
+from .pedagogy import explain
 from .recognizer import MODELS, SCENARIOS, GeminiRest
 from .retry import GaveUp
 
@@ -78,7 +82,8 @@ def analysis_to_dict(a: Analysis, data: dict | None = None, model: str | None = 
     for ids, r in a.clusters:
         item = {"kind": r.kind, "cards": [str(i) for i in ids]}
         if r.substance is not None:
-            item["substance"] = {"key": r.substance.key, "name": r.substance.name, "formula": r.substance.formula}
+            item["substance"] = {"key": r.substance.key, "name": r.substance.name, "formula": r.substance.formula,
+                                 "ionic": r.substance.ionic, "grade": r.substance.grade}
         if r.same_composition:
             item["same_composition"] = [{"key": s.key, "name": s.name, "formula": s.formula} for s in r.same_composition]
         if r.kind == "SUGGEST":
@@ -89,10 +94,14 @@ def analysis_to_dict(a: Analysis, data: dict | None = None, model: str | None = 
         if r.kind == "WRONG_BONDS":
             item["extra_bonds"] = [f"{a}-{b}" for (a, b), n in sorted(r.extra_bonds.items()) for _ in range(n)]
             item["missing_bonds"] = [f"{a}-{b}" for (a, b), n in sorted(r.missing_bonds.items()) for _ in range(n)]
+        item["explain"] = explain(r)
         if r.valence_warnings:
             item["warnings"] = r.valence_warnings
         clusters.append(item)
     out = {"ok": True, "status": a.status, "message": a.message, "speech": a.speech, "clusters": clusters}
+    if data and data.get("quality"):
+        q = data["quality"]
+        out["quality"] = {k: q[k] for k in ("brightness", "sharpness", "glare", "contrast", "warnings")}
     if data:
         out["cards"] = [{k: c.get(k) for k in ("id", "symbol", "confidence", "box_2d")}
                         for c in data.get("cards", []) if isinstance(c, dict)]
@@ -104,15 +113,27 @@ def analysis_to_dict(a: Analysis, data: dict | None = None, model: str | None = 
 
 
 # --------------------------------------------------------------------------- các điểm vào
-def handle_meta() -> tuple[int, dict]:
+def _deck_item(key: str, style: str) -> dict:
+    item = {"key": key, "name": BY_KEY[key].name, "formula": BY_KEY[key].formula}
+    if style == "valence":
+        text = valence_prompt(key)
+        if text:
+            item["prompt"] = text
+    return item
+
+
+def handle_meta(env=None) -> tuple[int, dict]:
     return 200, {
         "ok": True,
-        "decks": {name: [{"key": k, "name": BY_KEY[k].name, "formula": BY_KEY[k].formula} for k in keys]
-                  for name, keys in DECKS.items()},
+        "classroom": classroom.get_store(env or {}) is not None,
+        "decks": {name: [_deck_item(k, DECK_STYLE[name]) for k in keys] for name, keys in DECKS.items()},
+        "deck_info": {name: {"grade": DECK_GRADE[name], "style": DECK_STYLE[name]} for name in DECKS},
+        "grades": GRADE_TITLES,
         "scenarios": list(SCENARIOS),
         "scoring": {"base": BASE_SCORE, "wrong": WRONG_PENALTY, "hint": HINT_PENALTY, "min": MIN_SOLVED,
                     "max_hints": MAX_HINTS},
         "substances": len(DATABASE),
+        "equations": [{"id": i, "reactants": r, "products": p} for i, (r, p) in enumerate(reactions.EQUATIONS)],
         "models": list(MODELS),
         "elements": ELEMENT_NAMES,
     }
@@ -139,9 +160,6 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
             out["attempt"] = _attempt(a, target)
         return 200, out
 
-    ok, why = access_ok(env, headers, payload)
-    if not ok:
-        return _err(401 if "ACCESS_CODE nên" not in why else 503, why)
     if rate_limited(client_ip(headers), now):
         return _err(429, "Bạn gửi quá nhanh. Hãy đợi một lát rồi thử lại.")
     jpeg = decode_image(payload.get("image"))
@@ -149,27 +167,49 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         return _err(400, "Ảnh không hợp lệ: cần ảnh JPEG mã hóa base64.")
     if len(jpeg) > MAX_IMAGE_BYTES:
         return _err(413, "Ảnh quá lớn (tối đa 3 MB). Hãy giảm kích thước ảnh.")
-    if recognizer is None:
-        key = (env.get("GEMINI_API_KEY") or "").strip()
-        if not key:
-            return _err(503, "Máy chủ chưa có GEMINI_API_KEY.")
-        recognizer = GeminiRest(key)
     import cv2
     import numpy as np
     frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         return _err(400, "Không giải mã được ảnh.")
-    try:
-        raw = recognizer.recognize_jpeg(jpeg, frame)
-    except GaveUp as err:
-        status = getattr(err.last, "status", 0)
-        return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.",
-                    upstream=status)
+    markers = cards_from_markers(frame)
+    if markers:                                           # thẻ có mã đánh dấu: không cần mã truy cập hay khóa API
+        raw = json.dumps(markers)
+        recognizer = type("MarkerResult", (), {"last_model": "mã đánh dấu (ngoại tuyến)"})()
+    else:
+        ok, why = access_ok(env, headers, payload)
+        if not ok:
+            return _err(401 if "ACCESS_CODE nên" not in why else 503, why)
+        if recognizer is None:
+            key = (env.get("GEMINI_API_KEY") or "").strip()
+            if not key:
+                return _err(503, "Máy chủ chưa có GEMINI_API_KEY.")
+            recognizer = GeminiRest(key)
+        try:
+            raw = recognizer.recognize_jpeg(jpeg, frame)
+        except GaveUp as err:
+            status = getattr(err.last, "status", 0)
+            return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.", upstream=status)
     a = analyze(raw)
     out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
     if target:
         out["attempt"] = _attempt(a, target)
     return 200, out
+
+
+def handle_equation(payload: dict) -> tuple[int, dict]:
+    """Kiểm tra hệ số học sinh nhập (check) hoặc xem đáp án (reveal)."""
+    idx = payload.get("id")
+    if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(reactions.EQUATIONS):
+        return _err(400, "Phương trình không tồn tại.")
+    if payload.get("reveal"):
+        sol = reactions.solution(idx)
+        r, p = reactions.EQUATIONS[idx]
+        return 200, {"ok": True, "coefficients": sol, "equation": reactions.equation_text(r, p, sol)}
+    out = reactions.check(idx, payload.get("coefficients"))
+    if out.get("error"):
+        return _err(400, out["error"])
+    return 200, {"ok": True, **out}
 
 
 def handle_hint(payload: dict) -> tuple[int, dict]:
@@ -191,9 +231,15 @@ def handle_report(payload: dict) -> tuple[int, dict]:
     return 200, {"ok": True, "report": log.teacher_report(), "csv": log.to_csv(), "rows": len(clean)}
 
 
-ROUTES = {"meta": ("GET", lambda p, env, h: handle_meta()),
+def _class_limiter(action: str, headers) -> bool:
+    return rate_limited(f"{action}:{client_ip(headers)}", limit=classroom.RATE[action])
+
+
+ROUTES = {"meta": ("GET", lambda p, env, h: handle_meta(env)),
+          "classroom": ("POST", lambda p, env, h: classroom.handle(p, env, h, limiter=_class_limiter)),
           "analyze": ("POST", lambda p, env, h: handle_analyze(p, env, h)),
           "hint": ("POST", lambda p, env, h: handle_hint(p)),
+          "equation": ("POST", lambda p, env, h: handle_equation(p)),
           "report": ("POST", lambda p, env, h: handle_report(p))}
 
 

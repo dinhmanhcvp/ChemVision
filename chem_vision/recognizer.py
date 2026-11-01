@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 
 from .geometry import apply_geometry
+from .markers import cards_from_markers
+from .quality import assess
 from .retry import ApiError, call_with_retry
 
 # Khi thử: gemini-2.5-flash với thinkingBudget=0 mất khoảng 2,5 s/ảnh (mặc định 9-40 s); gemini-flash-lite-latest
@@ -120,8 +122,9 @@ class GeminiRest:
     URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
     def __init__(self, api_key: str, models=MODELS, timeout: float = 25.0, sleep=None, opener=None,
-                 link_mode: str = "geometry"):
+                 link_mode: str = "geometry", use_markers: bool = True, check_quality: bool = True):
         self.api_key, self.models, self.timeout, self.sleep, self.link_mode = api_key, models, timeout, sleep, link_mode
+        self.use_markers, self.check_quality = use_markers, check_quality
         self.opener = opener or urllib.request.urlopen
         self.no_thinking: set[str] = set()      # model từ chối thinkingBudget (ví dụ gemini-flash-lite-latest)
         self.last_model = None
@@ -164,6 +167,20 @@ class GeminiRest:
         return self.recognize_jpeg(frame_to_jpeg(frame_bgr), frame_bgr)
 
     def recognize_jpeg(self, jpeg: bytes, frame_bgr=None) -> str:
+        quality = None
+        if frame_bgr is not None:
+            if self.use_markers:                      # thẻ có mã đánh dấu: đọc ngay trên máy, không gọi AI
+                data = cards_from_markers(frame_bgr)
+                if data:
+                    self.last_model, self.last_data = "mã đánh dấu (ngoại tuyến)", data
+                    return json.dumps(data, ensure_ascii=False)
+            if self.check_quality:
+                quality = assess(frame_bgr)
+                if quality["blocking"]:               # ảnh hỏng nặng: không tốn một lượt gọi AI
+                    self.last_model = None
+                    self.last_data = {"cards": [], "connections": [], "quality": quality,
+                                      "quality_problems": quality["blocking"]}
+                    return json.dumps(self.last_data, ensure_ascii=False)
         kw = {"sleep": self.sleep} if self.sleep else {}
         text, model, _ = call_with_retry(lambda m: self._call(jpeg, m), self.models, **kw)
         self.last_model = model
@@ -174,6 +191,8 @@ class GeminiRest:
         if data is None:
             return text
         self.last_data = apply_geometry(frame_bgr, data)
+        if quality:
+            self.last_data["quality"] = quality
         return json.dumps(self.last_data, ensure_ascii=False)
 
 
@@ -183,3 +202,17 @@ def _header_retry_after(headers):
         return float(value) if value else None
     except (TypeError, ValueError):
         return None
+
+
+class MarkerRecognizer:
+    """Chỉ đọc mã đánh dấu in trên thẻ: chạy ngoại tuyến, không cần khóa API. Thẻ không có mã sẽ không được nhận ra."""
+
+    last_model = "mã đánh dấu (ngoại tuyến)"
+
+    def __init__(self):
+        self.last_data = None
+
+    def recognize(self, frame_bgr) -> str:
+        data = cards_from_markers(frame_bgr) or {"cards": [], "connections": [], "links_source": "markers"}
+        self.last_data = data
+        return json.dumps(data, ensure_ascii=False)

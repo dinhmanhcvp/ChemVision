@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 PUBLIC = os.path.join(ROOT, "public")
-ROUTES = {"meta", "analyze", "hint", "report"}
+ROUTES = {"meta", "analyze", "hint", "report", "equation", "classroom"}
 
 
 def load_env():

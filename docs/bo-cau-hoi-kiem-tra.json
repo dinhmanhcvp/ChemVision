@@ -1,0 +1,50 @@
+{
+  "mo_ta": "Bộ câu hỏi kiểm tra trước và sau khi dùng CHEM VISION, Khoa học tự nhiên lớp 7. Hai dạng A và B song song (cùng kĩ năng, khác chất) để chia đôi lớp: nửa làm A trước, B sau; nửa làm B trước, A sau, tránh học sinh nhớ đáp án. Mỗi câu 1 điểm, tối đa 8 điểm mỗi dạng.",
+  "ky_nang": {
+    "cong_thuc": "Hiểu ý nghĩa công thức hóa học",
+    "hoa_tri": "Lập công thức theo hóa trị",
+    "phan_tu_khoi": "Tính phân tử khối",
+    "phan_tu": "Phân biệt nguyên tử, phân tử",
+    "lien_ket": "Biết cách các nguyên tử liên kết trong phân tử",
+    "ion": "Phân biệt hợp chất ion và phân tử",
+    "cau_truc": "Hiểu rằng cách nối quyết định chất"
+  },
+  "dang": {
+    "A": [
+      {"id": "A1", "ky_nang": "cong_thuc", "cau_hoi": "Công thức hóa học của nước là H2O. Công thức này cho biết điều gì?",
+       "lua_chon": ["Phân tử nước có 2 nguyên tử hiđro và 1 nguyên tử oxi", "Nước gồm 2 gam hiđro và 1 gam oxi", "Nước chỉ gồm hai nguyên tố oxi", "Phân tử nước có 3 nguyên tử hiđro"], "dap_an": 0},
+      {"id": "A2", "ky_nang": "hoa_tri", "cau_hoi": "Biết H có hóa trị I, O có hóa trị II. Công thức hóa học đúng của hợp chất tạo bởi H và O là:",
+       "lua_chon": ["H2O", "HO", "HO2", "H2O2"], "dap_an": 0, "kiem_tra": {"a": "H", "va": 1, "b": "O", "vb": 2, "cong_thuc": "H2O"}},
+      {"id": "A3", "ky_nang": "hoa_tri", "cau_hoi": "Biết Al có hóa trị III, O có hóa trị II. Công thức hóa học đúng của hợp chất tạo bởi Al và O là:",
+       "lua_chon": ["AlO", "Al2O3", "Al3O2", "Al2O"], "dap_an": 1, "kiem_tra": {"a": "Al", "va": 3, "b": "O", "vb": 2, "cong_thuc": "Al2O3"}},
+      {"id": "A4", "ky_nang": "phan_tu_khoi", "cau_hoi": "Phân tử khối của CO2 là bao nhiêu? (C = 12, O = 16)",
+       "lua_chon": ["28", "44", "32", "60"], "dap_an": 1, "kiem_tra": {"cong_thuc": "CO2", "khoi_luong": 44}},
+      {"id": "A5", "ky_nang": "phan_tu", "cau_hoi": "Phát biểu nào sau đây về phân tử là đúng?",
+       "lua_chon": ["Phân tử là hạt gồm một số nguyên tử liên kết với nhau, đại diện cho chất", "Phân tử luôn chỉ gồm một nguyên tử", "Phân tử là hạt nhỏ hơn nguyên tử", "Mọi chất đều gồm những phân tử riêng lẻ"], "dap_an": 0},
+      {"id": "A6", "ky_nang": "lien_ket", "cau_hoi": "Trong phân tử nước, mỗi nguyên tử hiđro liên kết trực tiếp với:",
+       "lua_chon": ["Một nguyên tử oxi", "Hai nguyên tử oxi", "Nguyên tử hiđro còn lại", "Cả nguyên tử oxi và nguyên tử hiđro kia"], "dap_an": 0},
+      {"id": "A7", "ky_nang": "ion", "cau_hoi": "Natri clorua (NaCl) khác nước (H2O) ở điểm nào?",
+       "lua_chon": ["NaCl là hợp chất ion, gồm các ion xếp thành mạng tinh thể, không có phân tử NaCl riêng lẻ", "NaCl gồm những phân tử NaCl rời nhau như phân tử nước", "NaCl chỉ gồm một nguyên tố", "NaCl không có công thức hóa học"], "dap_an": 0},
+      {"id": "A8", "ky_nang": "cau_truc", "cau_hoi": "Một bạn ghép các nguyên tử thành H–H–O (O ở cuối) và nói đó là phân tử nước. Nhận xét nào đúng?",
+       "lua_chon": ["Sai, vì H có hóa trị I nên mỗi H chỉ nối được với một nguyên tử, trong nước hai H cùng nối với O", "Đúng, vì có đủ 2 H và 1 O", "Đúng, vì thứ tự các nguyên tử không quan trọng", "Sai, vì nước phải có 3 nguyên tử oxi"], "dap_an": 0}
+    ],
+    "B": [
+      {"id": "B1", "ky_nang": "cong_thuc", "cau_hoi": "Công thức hóa học của khí cacbonic là CO2. Công thức này cho biết điều gì?",
+       "lua_chon": ["Phân tử có 1 nguyên tử cacbon và 2 nguyên tử oxi", "Khí cacbonic gồm 1 gam cacbon và 2 gam oxi", "Phân tử có 2 nguyên tử cacbon", "Khí cacbonic chỉ gồm nguyên tố oxi"], "dap_an": 0},
+      {"id": "B2", "ky_nang": "hoa_tri", "cau_hoi": "Biết Na có hóa trị I, O có hóa trị II. Công thức hóa học đúng của hợp chất tạo bởi Na và O là:",
+       "lua_chon": ["NaO", "Na2O", "NaO2", "Na2O2"], "dap_an": 1, "kiem_tra": {"a": "Na", "va": 1, "b": "O", "vb": 2, "cong_thuc": "Na2O"}},
+      {"id": "B3", "ky_nang": "hoa_tri", "cau_hoi": "Biết Fe có hóa trị III, Cl có hóa trị I. Công thức hóa học đúng của hợp chất tạo bởi Fe và Cl là:",
+       "lua_chon": ["FeCl", "Fe3Cl", "FeCl3", "Fe3Cl3"], "dap_an": 2, "kiem_tra": {"a": "Fe", "va": 3, "b": "Cl", "vb": 1, "cong_thuc": "FeCl3"}},
+      {"id": "B4", "ky_nang": "phan_tu_khoi", "cau_hoi": "Phân tử khối của NH3 là bao nhiêu? (N = 14, H = 1)",
+       "lua_chon": ["15", "16", "17", "18"], "dap_an": 2, "kiem_tra": {"cong_thuc": "NH3", "khoi_luong": 17}},
+      {"id": "B5", "ky_nang": "phan_tu", "cau_hoi": "Phát biểu nào sau đây về nguyên tử và phân tử là đúng?",
+       "lua_chon": ["Phân tử gồm các nguyên tử liên kết với nhau; nguyên tử là hạt nhỏ hơn", "Nguyên tử gồm nhiều phân tử", "Phân tử và nguyên tử luôn giống hệt nhau", "Chỉ có nguyên tử, không có phân tử"], "dap_an": 0},
+      {"id": "B6", "ky_nang": "lien_ket", "cau_hoi": "Trong phân tử metan CH4, nguyên tử cacbon liên kết trực tiếp với:",
+       "lua_chon": ["Hai nguyên tử hiđro", "Bốn nguyên tử hiđro", "Một nguyên tử hiđro", "Bốn nguyên tử oxi"], "dap_an": 1},
+      {"id": "B7", "ky_nang": "ion", "cau_hoi": "Canxi oxit (CaO) khác khí cacbonic (CO2) ở điểm nào?",
+       "lua_chon": ["CaO là hợp chất ion, gồm các ion xếp thành mạng tinh thể, không có phân tử CaO riêng lẻ", "CaO gồm những phân tử CaO rời nhau như CO2", "CaO chỉ gồm nguyên tố oxi", "CaO không có công thức hóa học"], "dap_an": 0},
+      {"id": "B8", "ky_nang": "cau_truc", "cau_hoi": "Một bạn ghép các nguyên tử thành H–H–O rồi nói đó là phân tử nước và có công thức H2O. Nhận xét nào đúng?",
+       "lua_chon": ["Sai cách nối: hai H phải cùng nối với O, vì mỗi H (hóa trị I) chỉ nối được một nguyên tử", "Đúng, vì công thức H2O chỉ cần đủ số nguyên tử", "Đúng, vì cách nối không ảnh hưởng đến chất", "Sai, vì nước không chứa hiđro"], "dap_an": 0}
+    ]
+  }
+}
