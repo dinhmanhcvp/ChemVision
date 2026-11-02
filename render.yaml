@@ -1,0 +1,19 @@
+# Triển khai lên Render.com (Blueprint). Hướng dẫn: docs/bao-cao/HUONG_DAN_DEPLOY.md
+services:
+  - type: web
+    name: chem-vision
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/dev_server.py
+    healthCheckPath: /api/meta
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: CLASSROOM_MEMORY      # một tiến trình chạy liên tục nên lớp học giữ trong bộ nhớ được; mất khi máy chủ khởi động lại
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false                # nhập trên trang Render, không ghi vào mã
+      - key: ACCESS_CODE
+        sync: false

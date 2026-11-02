@@ -1,6 +1,7 @@
 """Máy chủ thử cục bộ giống Vercel: phục vụ public/ và chuyển /api/<tên> vào đúng hàm trong api/.
 
 Chạy: python scripts/dev_server.py [cổng]   (đọc GEMINI_API_KEY, ACCESS_CODE từ môi trường hoặc chem_vision/.env)
+Cũng là máy chủ khi triển khai lên Render.com (xem render.yaml): HOST, PORT lấy từ môi trường.
 """
 import importlib
 import json
@@ -79,7 +80,8 @@ class Dev(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     load_env()
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
-    print(f"http://localhost:{port}  (GEMINI_API_KEY: {'có' if os.environ.get('GEMINI_API_KEY') else 'chưa'}, "
-          f"ACCESS_CODE: {'có' if os.environ.get('ACCESS_CODE') else 'chưa'})")
-    ThreadingHTTPServer(("127.0.0.1", port), Dev).serve_forever()
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 3000))
+    host = os.environ.get("HOST", "127.0.0.1")   # Render.com: HOST=0.0.0.0, cổng lấy từ biến PORT
+    print(f"http://{host}:{port}  (GEMINI_API_KEY: {'có' if os.environ.get('GEMINI_API_KEY') else 'chưa'}, "
+          f"ACCESS_CODE: {'có' if os.environ.get('ACCESS_CODE') else 'chưa'})", flush=True)
+    ThreadingHTTPServer((host, port), Dev).serve_forever()
