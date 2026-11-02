@@ -4,6 +4,7 @@ Chạy: python charts.py && python build_docx.py
 """
 import os
 import re
+import sys
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
@@ -76,15 +77,22 @@ def setup():
     field(fp, "PAGE")
 
 
-def field(paragraph, instr):
-    r = paragraph.add_run()
-    for tag, text in (("begin", None), (None, instr), ("separate", None), ("end", None)):
-        if tag:
-            e = OxmlElement("w:fldChar"); e.set(qn("w:fldCharType"), tag)
-        else:
-            e = OxmlElement("w:instrText"); e.set(qn("xml:space"), "preserve"); e.text = text
-        r._r.append(e)
-    set_font(r, 11)
+def field(paragraph, instr, shown="", size=11, bold=None, color=None):
+    """Trường Word (PAGE, TOC, SEQ…); `shown` là giá trị hiển thị sẵn trước khi Word cập nhật."""
+    def run(*els, text=None):
+        r = paragraph.add_run(text) if text else paragraph.add_run()
+        for e in els:
+            r._r.append(e)
+        set_font(r, size, bold=bold, color=color)
+
+    def char(tag):
+        e = OxmlElement("w:fldChar"); e.set(qn("w:fldCharType"), tag)
+        return e
+    ins = OxmlElement("w:instrText"); ins.set(qn("xml:space"), "preserve"); ins.text = f" {instr}"
+    run(char("begin")); run(ins); run(char("separate"))
+    if shown:
+        run(text=shown)
+    run(char("end"))
 
 
 def runs(p, text, size=None, color=None):
@@ -117,8 +125,62 @@ def caption(text, kind):
     p.paragraph_format.space_after = Pt(10)
     if kind == "Bảng":
         p.paragraph_format.keep_with_next = True
-    r = p.add_run(f"{kind} {(_fig_n if kind == 'Hình' else _tab_n)[0]}. "); set_font(r, 11.5, bold=True, color=NAVY)
+    r = p.add_run(f"{kind} "); set_font(r, 11.5, bold=True, color=NAVY)
+    # trường SEQ để Word lập được danh mục hình, danh mục bảng
+    field(p, f"SEQ {kind} \\* ARABIC", str((_fig_n if kind == "Hình" else _tab_n)[0]), 11.5, True, NAVY)
+    r = p.add_run(". "); set_font(r, 11.5, bold=True, color=NAVY)
     r = p.add_run(text); set_font(r, 11.5, italic=True)
+
+
+def front_matter(abbreviations, toc_levels=3):
+    """Mục lục, danh mục hình, danh mục bảng, danh mục từ viết tắt; mỗi phần một trang riêng."""
+    for title, instr in (("MỤC LỤC", f'TOC \\o "1-{toc_levels}" \\h \\z \\u'), ("DANH MỤC HÌNH", 'TOC \\h \\z \\c "Hình"'),
+                         ("DANH MỤC BẢNG", 'TOC \\h \\z \\c "Bảng"')):
+        para(title, WD_ALIGN_PARAGRAPH.CENTER, 15, NAVY, True, 10)
+        field(doc.add_paragraph(), instr, "Nhấp chuột phải, chọn Update Field để hiện nội dung.", 13)
+        page_break()
+    para("DANH MỤC TỪ VIẾT TẮT", WD_ALIGN_PARAGRAPH.CENTER, 15, NAVY, True, 10)
+    t = doc.add_table(rows=len(abbreviations), cols=2)
+    t.style = "Table Grid"; t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for (a, meaning), r in zip(sorted(abbreviations, key=lambda x: x[0].lower()), t.rows):
+        for c, txt, w, b in ((r.cells[0], a, 3.5, True), (r.cells[1], meaning, 12.5, False)):
+            c.width = Cm(w); c.paragraphs[0].paragraph_format.space_after = Pt(0)
+            run = c.paragraphs[0].add_run(txt); set_font(run, 12, bold=b)
+    page_break()
+
+
+def finalize(path):
+    """Cho Word cập nhật mọi trường (mục lục, danh mục, số trang) rồi lưu, để mở file là thấy ngay.
+    Không có Word (máy không phải Windows) thì giữ cờ updateFields: Word sẽ hỏi cập nhật khi mở."""
+    try:
+        import win32com.client
+    except ImportError:
+        return False
+    word = win32com.client.DispatchEx("Word.Application")
+    word.Visible, word.DisplayAlerts = False, 0
+    try:
+        d = word.Documents.Open(os.path.abspath(path))
+        d.Fields.Update()
+        tocs = [c(i) for c in (d.TablesOfContents, d.TablesOfFigures) for i in range(1, c.Count + 1)]
+        for t in tocs:
+            t.Update()
+            # Word/WPS lập mục lục bằng kiểu mặc định, cỡ chữ theo thân bài; thu gọn để mục lục vừa một trang
+            t.Range.Font.Size = 12
+            t.Range.ParagraphFormat.SpaceAfter = 2
+            t.Range.ParagraphFormat.LineSpacingRule = 0          # giãn dòng đơn
+        for t in tocs:
+            t.UpdatePageNumbers()                                 # chỉ cập nhật số trang, giữ định dạng vừa đặt
+        d.Save(); d.Close()
+    finally:
+        try:
+            word.Quit()
+        except Exception:      # Word thường tự thoát khi đóng tài liệu cuối cùng
+            pass
+    saved = Document(path)                       # trường đã có nội dung: bỏ cờ để Word không hỏi lại khi mở
+    for el in saved.settings.element.findall(qn("w:updateFields")):
+        saved.settings.element.remove(el)
+    saved.save(path)
+    return True
 
 
 def figure(name, cap, width=16.5):
@@ -224,10 +286,15 @@ def members():
         ["2", "[ ]", "[ ]", "Cố vấn khởi nghiệp, tài chính và kết nối trường thử nghiệm"],
     ], [1.2, 3.8, 4.3, 7.2])
     page_break()
-    h("MỤC LỤC", 1)
-    p = doc.add_paragraph(); field(p, 'TOC \\o "1-3" \\h \\z \\u')
-    para("(Nếu mục lục trống: nhấp chuột phải vào đây, chọn Update Field / Cập nhật trường.)", size=10, color=RGBColor(0x6B, 0x72, 0x80))
-    page_break()
+    front_matter([
+        ("AI", "Trí tuệ nhân tạo"), ("ArUco", "Loại mã vuông đen trắng in trên thẻ, đọc bằng thư viện OpenCV"),
+        ("BMC", "Mô hình kinh doanh canvas (Business Model Canvas)"), ("CAC", "Chi phí có được một khách hàng"),
+        ("CAPEX", "Chi phí đầu tư ban đầu"), ("GD&ĐT", "Giáo dục và Đào tạo"), ("GDPT", "Giáo dục phổ thông"),
+        ("GV", "Giáo viên"), ("HS", "Học sinh"), ("KHTN", "Khoa học tự nhiên"),
+        ("LTV", "Giá trị vòng đời khách hàng"), ("NXB", "Nhà xuất bản"), ("OPEX", "Chi phí hoạt động"),
+        ("PTK", "Phân tử khối"), ("SAM", "Thị trường có thể phục vụ"), ("SOM", "Thị trường có thể chiếm lĩnh"),
+        ("TAM", "Tổng quy mô thị trường"), ("THCS", "Trung học cơ sở"), ("TNDN", "Thu nhập doanh nghiệp"),
+    ], toc_levels=2)                     # như mẫu: mục lục chỉ liệt kê các mục lớn
 
 
 def summary():
@@ -600,5 +667,7 @@ if __name__ == "__main__":
     for part in (cover, members, summary, canvas, problem, market, product, customers, revenue, costs, pricing, financials,
                  strategy, marketing, risks, conclusion):
         part()
-    doc.save(OUT)
-    print("Đã lưu", os.path.abspath(OUT), "-", _fig_n[0], "hình,", _tab_n[0], "bảng")
+    out = sys.argv[1] if len(sys.argv) > 1 else OUT      # tham số: lưu ra tệp khác (khi tệp chính đang mở)
+    doc.save(out)
+    print("Đã lưu", os.path.abspath(out), "-", _fig_n[0], "hình,", _tab_n[0], "bảng;",
+          "đã cập nhật mục lục bằng Word" if finalize(out) else "mở bằng Word để cập nhật mục lục")

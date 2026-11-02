@@ -4,6 +4,7 @@ Dùng lại các hàm định dạng của build_docx.py; số liệu lấy từ
 """
 import json
 import os
+import sys
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -36,6 +37,8 @@ def setup():
     sec.left_margin = sec.right_margin = sec.top_margin = sec.bottom_margin = Cm(2.54)   # như mẫu: lề 1 inch
     st = B.doc.styles["Normal"]
     B.set_font(st, 14, color=RGBColor(0x22, 0x22, 0x22))
+    st.paragraph_format.line_spacing = 1.15
+    st.paragraph_format.space_after = Pt(4)
     for name, size, colour in (("Heading 1", 15, RGBColor(0x00, 0x33, 0x66)), ("Heading 2", 14, RGBColor(0x00, 0x66, 0x99)),
                                ("Heading 3", 14, RGBColor(0x00, 0x66, 0x99))):
         B.set_font(B.doc.styles[name], size, bold=True, color=colour)
@@ -56,11 +59,17 @@ def title_block():
                  "Giáo viên hướng dẫn: [Họ và tên]", "Đơn vị: [Trường] – [Tỉnh/thành phố]", "Năm học: 2026–2027"):
         para(line, WD_ALIGN_PARAGRAPH.LEFT, 14, bold=True, space_after=4)
     B.page_break()
-    h("MỤC LỤC", 1)
-    p = B.doc.add_paragraph(); B.field(p, 'TOC \\o "1-3" \\h \\z \\u')
-    para("(Nếu mục lục trống: nhấp chuột phải vào đây, chọn Update Field / Cập nhật trường.)", size=10,
-         color=RGBColor(0x6B, 0x72, 0x80))
-    B.page_break()
+    B.front_matter([
+        ("AI", "Trí tuệ nhân tạo"), ("API", "Giao diện lập trình ứng dụng"),
+        ("ArUco", "Họ mã đánh dấu vuông đen trắng (fiducial marker) của thư viện OpenCV"),
+        ("HSV", "Không gian màu sắc độ – bão hòa – giá trị sáng"), ("IoU", "Tỉ lệ giao trên hợp của hai khung bao"),
+        ("JPEG", "Định dạng nén ảnh"), ("JSON", "Định dạng dữ liệu văn bản có cấu trúc"),
+        ("KHTN", "Khoa học tự nhiên"), ("Lab", "Không gian màu CIE L*a*b*, khoảng cách màu gần với cảm nhận của mắt"),
+        ("OpenCV", "Thư viện mã nguồn mở về thị giác máy tính"), ("PTK", "Phân tử khối"),
+        ("px", "Điểm ảnh (pixel)"), ("THCS", "Trung học cơ sở"), ("GDPT", "Giáo dục phổ thông"),
+        ("WL", "Thuật toán tô màu đỉnh Weisfeiler–Lehman"),
+        ("MATCH, WRONG_BONDS, SUGGEST, UNKNOWN", "Bốn kết luận của tầng chấm: khớp, sai liên kết, gợi ý, không nhận ra"),
+    ])
 
 
 def summary():
@@ -153,14 +162,14 @@ def chapter2():
 def chapter3():
     h("Chương 3: THIẾT KẾ VÀ PHƯƠNG PHÁP NGHIÊN CỨU", 1)
     h("3.1. Kiến trúc tổng thể", 2)
-    figure("k01_kien_truc", "Kiến trúc hai tầng: nhận diện (ArUco hoặc Gemini + hình học) và chấm (đối sánh đồ thị)")
+    figure("k01_kien_truc", "Kiến trúc hai tầng: nhận diện (ArUco hoặc Gemini + hình học) và chấm (đối sánh đồ thị)", 14.5)
     para("Ảnh từ camera (thu nhỏ để cạnh dài nhất không quá 1.280 điểm ảnh) đi qua bộ đọc ArUco trước. Nếu đọc được mã, liên kết "
          "được tính ngay theo khoảng cách tâm và ảnh không bao giờ rời khỏi máy chủ. Nếu không có mã (thẻ học sinh tự vẽ), ảnh được "
          "kiểm tra chất lượng; ảnh đạt mới được gửi tới Gemini, và Gemini chỉ trả về kí hiệu cùng khung bao của từng thẻ. Liên kết "
          "khi đó được tính lại bằng hình học trên ảnh. Cả hai đường cho ra cùng một JSON, nên tầng chấm không cần biết thẻ được đọc "
          "bằng cách nào.")
     h("3.2. Thiết kế thẻ và mã đánh dấu", 2)
-    figure("k02_hinh_hoc_the", "Thẻ in thật (trái) và khoảng cách tâm trên lưới lục giác so với các ngưỡng (phải)")
+    figure("k02_hinh_hoc_the", "Thẻ in thật (trái) và khoảng cách tâm trên lưới lục giác so với các ngưỡng (phải)", 14)
     table("Thông số thẻ nguyên tố", ["Thông số", "Giá trị", "Lí do"], [
         ["Hình dạng", "Lục giác đều, đối cạnh 40 mm", "Sáu cạnh cho sáu hướng nối, gần với hình ảnh vòng benzen, mạng tinh thể"],
         ["Mã đánh dấu", f"ArUco {markers.DICT_NAME}, cạnh 40/{vn(markers.CARD_TO_MARKER, 1)} ≈ 18 mm", "Mã 4×4 có ô lớn, đọc được ở ảnh nhỏ; 50 mã đủ cho 22 nguyên tố"],
@@ -192,7 +201,7 @@ def chapter3():
               f"**Khử trùng:** hai khung bao cùng kí hiệu có IoU ≥ {vn(geometry.DUP_IOU, 1)} được coi là một thẻ bị liệt kê hai lần."):
         bullet(t)
     h("3.5. Mô hình đồ thị và thuật toán đối sánh", 2)
-    figure("k04_dong_phan", "Hai đồ thị cùng thành phần nhưng không đẳng cấu: etanol và đimetyl ete")
+    figure("k04_dong_phan", "Hai đồ thị cùng thành phần nhưng không đẳng cấu: etanol và đimetyl ete", 12.5)
     para("Sau khi làm sạch dữ liệu (bỏ thẻ trùng số hiệu, kí hiệu không hợp lệ, cạnh trỏ tới thẻ không tồn tại; thẻ có độ tin cậy "
          f"dưới {vn(core.MIN_CONFIDENCE, 1)} buộc chụp lại), các thẻ được tách thành **thành phần liên thông** bằng duyệt đồ thị; mỗi "
          "thành phần là một phân tử. Mỗi thành phần được đối sánh như sau:")
@@ -212,7 +221,7 @@ def chapter3():
               "**Cảnh báo hóa trị:** số liên kết tối đa của mỗi nguyên tố được học từ chính cơ sở dữ liệu; thẻ chạm nhiều thẻ hơn mức này "
               "được nêu trong lời giải thích."):
         bullet(t)
-    figure("k05_quyet_dinh", "Lưu đồ quyết định của tầng chấm cho một cụm thẻ")
+    figure("k05_quyet_dinh", "Lưu đồ quyết định của tầng chấm cho một cụm thẻ", 13.5)
     h("3.6. Cân bằng phương trình hóa học", 2)
     para("Với phương trình có m chất và k nguyên tố, lập ma trận A cỡ k × m: phần tử aₑ,ᵢ là số nguyên tử nguyên tố e trong chất i, "
          "mang dấu dương ở vế trái và âm ở vế phải. Hệ số cân bằng là nghiệm dương của A·x = 0. Hệ thống khử Gauss–Jordan bằng "
@@ -240,7 +249,7 @@ def chapter3():
          f"nhiên 0–360°, méo phối cảnh, làm mờ Gauss, giảm độ sáng kèm nhiễu, nén JPEG chất lượng 85. Mỗi mức đo trên {N_IMG} ảnh "
          f"({SC['chất dựng được']} chất × 2 góc xoay). Chỉ số: tỉ lệ ảnh đọc đủ mọi thẻ và tỉ lệ ảnh kết luận đúng chất. Toàn bộ quy "
          f"trình nằm trong tệp scripts/bao_cao/do_luong.py, hạt giống ngẫu nhiên cố định nên chạy lại cho cùng kết quả.")
-    figure("k03_vi_du_nhan_dien", "Một ảnh thử và kết quả nhận diện: khung thẻ, số hiệu và liên kết (đường xanh)")
+    figure("k03_vi_du_nhan_dien", "Một ảnh thử và kết quả nhận diện: khung thẻ, số hiệu và liên kết (đường xanh)", 12.5)
 
 
 def chapter4():
@@ -262,7 +271,7 @@ def chapter4():
          f"Những đột biến tình cờ tạo ra một chất có thật trong cơ sở dữ liệu đã bị loại khỏi phép đếm. Trong {G['đột biến một liên kết']} "
          f"trường hợp còn lại, hệ thống không lần nào kết luận nhầm là đúng, và lần nào cũng chỉ ra được liên kết thừa, thiếu.")
     h("4.2. Độ bền của nhận diện bằng mã ArUco", 2)
-    figure("k06_do_ben_aruco", "Tỉ lệ đọc đủ thẻ và kết luận đúng chất theo bốn loại biến dạng ảnh")
+    figure("k06_do_ben_aruco", "Tỉ lệ đọc đủ thẻ và kết luận đúng chất theo bốn loại biến dạng ảnh", 14.5)
     s36, s42 = row("kích thước thẻ", "cạnh thẻ px", 36), row("kích thước thẻ", "cạnh thẻ px", 42)
     s30 = row("kích thước thẻ", "cạnh thẻ px", 30)
     b1, b15, b2 = (row("mờ", "mờ σ px", v) for v in (1, 1.5, 2))
@@ -281,7 +290,7 @@ def chapter4():
          f"{vn(markers.LINK_RATIO, 1)}. Cách khắc phục là hướng dẫn chụp gần vuông góc với mặt bàn, hoặc nắn phối cảnh theo bốn góc mã "
          f"trước khi đo khoảng cách (hướng phát triển).")
     h("4.3. Đường hình học và một cải tiến được định lượng", 2)
-    figure("k07_hinh_hoc", "Quyết định nối theo khe hở (trái) và số phân tử kết luận đúng trước và sau khi hạ ngưỡng (phải)")
+    figure("k07_hinh_hoc", "Quyết định nối theo khe hở (trái) và số phân tử kết luận đúng trước và sau khi hạ ngưỡng (phải)", 14.5)
     g1 = GEO_NOW["gỗ sáng"]
     rows = []
     for b in GEO_NOW:
@@ -301,15 +310,14 @@ def chapter4():
          f"liên kết thiếu: chữ đen hoặc thẻ H màu trắng có màu gần màu bàn nên bị coi nhầm là khe hở. Vì vậy hướng dẫn sử dụng yêu cầu "
          f"đặt thẻ trên nền trơn khác màu thẻ, và đường có mã ArUco được dùng làm đường chính.")
     h("4.4. Kiểm tra chất lượng ảnh", 2)
-    figure("k08_chat_luong", "Độ nét đo được khi làm mờ dần một ảnh thử và kết luận của bộ kiểm tra", 13.5)
+    figure("k08_chat_luong", "Độ nét đo được khi làm mờ dần một ảnh thử và kết luận của bộ kiểm tra", 11)
     para("Ảnh nét có độ nét khoảng vài trăm; chỉ cần mờ σ = 1 điểm ảnh, độ nét đã giảm hơn mười lần và hệ thống nhắc chụp lại; từ "
          "σ = 2 ảnh bị chặn trước khi tốn một lượt gọi AI. So với Mục 4.2, ngưỡng chặn nằm đúng vùng mà bộ đọc mã bắt đầu thất bại.")
     h("4.5. Kiểm thử phần mềm", 2)
-    bullet("**245 kiểm thử tự động** cho lõi (làm sạch dữ liệu, đối sánh, gợi ý, hóa trị, cân bằng phương trình, thử lại khi gọi API, "
-           "lớp học trực tuyến, máy chủ web), chạy không cần camera hay mạng; có vòng khép kín \"in thẻ rồi đọc lại\" trên trang PDF thật, "
-           "kể cả khi thu nhỏ, nghiêng 9°, hơi mờ.")
-    bullet("**113 kiểm thử giao diện** trong trình duyệt thật, đóng vai học sinh lớp 7, lớp 8, giáo viên, người không có camera, "
-           "người mất mạng; kiểm tra cả bố cục ở khung 320–1.180 điểm ảnh, tương phản chữ đạt WCAG AA, nút chạm tối thiểu 48 px.")
+    para("Ngoài bộ đo trên, lõi có **245 kiểm thử tự động** (làm sạch dữ liệu, đối sánh, gợi ý, hóa trị, cân bằng phương trình, thử "
+         "lại khi gọi API, lớp học trực tuyến, máy chủ web), chạy không cần camera hay mạng, gồm cả vòng khép kín \"in thẻ rồi đọc lại\" "
+         "trên trang PDF thật khi thu nhỏ, nghiêng 9°, hơi mờ. Giao diện có **113 kiểm thử** trong trình duyệt thật, đóng vai học sinh, "
+         "giáo viên, người không có camera, người mất mạng; kiểm tra bố cục ở khung 320–1.180 px, tương phản chữ đạt WCAG AA.")
     h("4.6. Ma trận quyết định của tầng chấm", 2)
     table("Ma trận quyết định và phản hồi cho học sinh", ["Kết luận", "Điều kiện", "Phản hồi", "Ví dụ"], [
         ["MATCH", "Có chất cùng chữ kí và đẳng cấu", "Con dấu xanh, tên chất, phân tử khối; chú thích nếu là hợp chất ion", "H–O–H → nước, PTK 18"],
@@ -394,5 +402,7 @@ if __name__ == "__main__":
     setup()
     for part in (title_block, summary, chapter1, chapter2, chapter3, chapter4, chapter5, references, appendix):
         part()
-    B.doc.save(OUT)
-    print("Đã lưu", os.path.abspath(OUT), "-", B._fig_n[0], "hình,", B._tab_n[0], "bảng")
+    out = sys.argv[1] if len(sys.argv) > 1 else OUT      # tham số: lưu ra tệp khác (khi tệp chính đang mở trong Word)
+    B.doc.save(out)
+    print("Đã lưu", os.path.abspath(out), "-", B._fig_n[0], "hình,", B._tab_n[0], "bảng;",
+          "đã cập nhật mục lục bằng Word" if B.finalize(out) else "mở bằng Word để cập nhật mục lục")
