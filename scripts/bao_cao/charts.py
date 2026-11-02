@@ -59,14 +59,14 @@ def cover():
     save(fig, "h00_bia")
 
 
-# ---------------- Hình: quy trình "AI chỉ nhìn, phần mềm kết luận" ----------------
+# ---------------- Hình: quy trình nhận diện → chấm → phản hồi ----------------
 def pipeline():
     fig, ax = blank((11, 3.6))
     ax.set_xlim(0, 11); ax.set_ylim(0, 3.6)
     steps = [("1. GHÉP THẺ", "Học sinh ghép thẻ\nlục giác in sẵn", LIGHT),
-             ("2. NHÌN", "Mã ArUco: OpenCV\n(ngoại tuyến, 0 đồng)\nThẻ thường: Gemini", "white"),
+             ("2. NHẬN DIỆN", "Mã ArUco: OpenCV\n(ngoại tuyến, 0 đồng)\nThẻ thường: Gemini", "white"),
              ("3. ĐO LIÊN KẾT", "Hình học OpenCV:\nthẻ nào chạm thẻ nào\n→ đồ thị phân tử", LIGHT),
-             ("4. KẾT LUẬN", "Đối sánh đồ thị\nvới 70 chất\n(thuật toán xác định)", "white"),
+             ("4. CHẤM", "Đối sánh đồ thị\nvới 70 chất\n(thuật toán xác định)", "white"),
              ("5. PHẢN HỒI", "Đúng / sai ở đâu / vì sao\nGợi ý, sao, huy hiệu\nBáo cáo giáo viên", LIGHT)]
     for i, (t, d, fc) in enumerate(steps):
         x = 0.15 + i * 2.18
@@ -76,9 +76,9 @@ def pipeline():
         if i < 4:
             ax.annotate("", (x + 2.17, 1.85), (x + 1.97, 1.85), arrowprops=dict(arrowstyle="-|>", color=NAVY, lw=1.8))
     ax.add_patch(Rectangle((2.33, 0.25), 1.95, 0.3, fc=YELLOW, ec="none"))
-    ax.text(3.3, 0.4, "AI chỉ \"nhìn\"", ha="center", va="center", fontsize=10.5, weight="bold")
+    ax.text(3.3, 0.4, "AI hỗ trợ nhận diện", ha="center", va="center", fontsize=10.5, weight="bold")
     ax.add_patch(Rectangle((4.51, 0.25), 4.13, 0.3, fc=GREEN, ec="none"))
-    ax.text(6.57, 0.4, "Phần mềm \"kết luận\": không do AI tự nghĩ", ha="center", va="center", fontsize=10.5, color="white", weight="bold")
+    ax.text(6.57, 0.4, "Thuật toán chấm theo cấu trúc, giải thích được", ha="center", va="center", fontsize=10.5, color="white", weight="bold")
     save(fig, "h01_quy_trinh")
 
 

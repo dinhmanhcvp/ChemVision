@@ -1,0 +1,668 @@
+{
+ "đối sánh đồ thị": {
+  "chất": 70,
+  "lượt hoán vị": 1400,
+  "khớp đúng sau hoán vị": 1400,
+  "đột biến một liên kết": 811,
+  "khớp nhầm": 0,
+  "báo sai liên kết": 811,
+  "đồng phân": {
+   "C2H5OH/CH3OCH3": {
+    "cùng thành phần": true,
+    "phân biệt đúng": true
+   },
+   "C4H10/C4H10-iso": {
+    "cùng thành phần": true,
+    "phân biệt đúng": true
+   }
+  },
+  "ms trung vị": 0.05,
+  "ms p95": 0.142,
+  "ms lớn nhất": 0.407,
+  "cỡ phân tử lớn nhất": 14
+ },
+ "cân bằng phương trình": {
+  "phương trình": 24,
+  "cân bằng đúng": 24,
+  "ms trung vị": 0.044,
+  "ms lớn nhất": 0.207
+ },
+ "cảnh tổng hợp": {
+  "chất dựng được": 64,
+  "đặt theo lưới": 54,
+  "đặt tỏa tròn": 10,
+  "tổng số chất": 70,
+  "không dựng được": [
+   "CaCO3",
+   "C2H5OH",
+   "C2H6",
+   "C3H8",
+   "C4H10",
+   "C4H10-iso"
+  ]
+ },
+ "kích thước thẻ": [
+  {
+   "cạnh thẻ px": 30,
+   "lượt": 128,
+   "đọc đủ thẻ %": 60.2,
+   "đúng chất %": 60.2,
+   "ms trung vị": 1.1
+  },
+  {
+   "cạnh thẻ px": 36,
+   "lượt": 128,
+   "đọc đủ thẻ %": 98.4,
+   "đúng chất %": 98.4,
+   "ms trung vị": 1.1
+  },
+  {
+   "cạnh thẻ px": 42,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.2
+  },
+  {
+   "cạnh thẻ px": 50,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.3
+  },
+  {
+   "cạnh thẻ px": 60,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.5
+  },
+  {
+   "cạnh thẻ px": 80,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 2.0
+  },
+  {
+   "cạnh thẻ px": 120,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 3.4
+  }
+ ],
+ "nghiêng": [
+  {
+   "nghiêng độ": 0,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.6
+  },
+  {
+   "nghiêng độ": 20,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.5
+  },
+  {
+   "nghiêng độ": 35,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 93.0,
+   "ms trung vị": 1.6
+  },
+  {
+   "nghiêng độ": 50,
+   "lượt": 128,
+   "đọc đủ thẻ %": 99.2,
+   "đúng chất %": 90.6,
+   "ms trung vị": 1.6
+  },
+  {
+   "nghiêng độ": 60,
+   "lượt": 128,
+   "đọc đủ thẻ %": 10.9,
+   "đúng chất %": 7.8,
+   "ms trung vị": 1.7
+  }
+ ],
+ "mờ": [
+  {
+   "mờ σ px": 0,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.6
+  },
+  {
+   "mờ σ px": 1,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.8
+  },
+  {
+   "mờ σ px": 1.5,
+   "lượt": 128,
+   "đọc đủ thẻ %": 63.3,
+   "đúng chất %": 63.3,
+   "ms trung vị": 1.6
+  },
+  {
+   "mờ σ px": 2,
+   "lượt": 128,
+   "đọc đủ thẻ %": 25.0,
+   "đúng chất %": 25.0,
+   "ms trung vị": 1.7
+  },
+  {
+   "mờ σ px": 2.5,
+   "lượt": 128,
+   "đọc đủ thẻ %": 9.4,
+   "đúng chất %": 9.4,
+   "ms trung vị": 1.5
+  },
+  {
+   "mờ σ px": 3,
+   "lượt": 128,
+   "đọc đủ thẻ %": 0.0,
+   "đúng chất %": 0.0,
+   "ms trung vị": 0.9
+  }
+ ],
+ "tối": [
+  {
+   "độ sáng ×": 1.0,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.9
+  },
+  {
+   "độ sáng ×": 0.6,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.7
+  },
+  {
+   "độ sáng ×": 0.4,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.8
+  },
+  {
+   "độ sáng ×": 0.25,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.7
+  },
+  {
+   "độ sáng ×": 0.15,
+   "lượt": 128,
+   "đọc đủ thẻ %": 100.0,
+   "đúng chất %": 100.0,
+   "ms trung vị": 1.5
+  }
+ ],
+ "hình học (đường Gemini)": {
+  "MAX_RATIO=1.7": {
+   "gỗ sáng": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 9,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 11,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 18,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 22,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 30,
+    "liên kết đúng": 206,
+    "liên kết thừa": 75,
+    "liên kết thiếu": 13,
+    "khoảng cách liên kết thừa": {
+     "1.73": 75
+    }
+   },
+   "xám đậm": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 11,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 17,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 23,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 11,
+    "liên kết đúng": 141,
+    "liên kết thừa": 44,
+    "liên kết thiếu": 78,
+    "khoảng cách liên kết thừa": {
+     "1.73": 44
+    }
+   },
+   "trắng": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 39,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 40,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 40,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 43,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 43,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 45,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 47,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 49,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 51,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 57,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 62,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 17,
+    "liên kết đúng": 149,
+    "liên kết thừa": 68,
+    "liên kết thiếu": 70,
+    "khoảng cách liên kết thừa": {
+     "1.73": 68
+    }
+   }
+  },
+  "MAX_RATIO=1.3": {
+   "gỗ sáng": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 0,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 9,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 11,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 18,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 22,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 59,
+    "liên kết đúng": 206,
+    "liên kết thừa": 0,
+    "liên kết thiếu": 13,
+    "khoảng cách liên kết thừa": {}
+   },
+   "xám đậm": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 8,
+      "nối": true
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 11,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 17,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 23,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 25,
+    "liên kết đúng": 141,
+    "liên kết thừa": 0,
+    "liên kết thiếu": 78,
+    "khoảng cách liên kết thừa": {}
+   },
+   "trắng": {
+    "khe hở": [
+     {
+      "khe hở % cạnh thẻ": 0,
+      "khe hở px": 39,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 1,
+      "khe hở px": 40,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 2,
+      "khe hở px": 40,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 3,
+      "khe hở px": 43,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 4,
+      "khe hở px": 43,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 5,
+      "khe hở px": 45,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 6,
+      "khe hở px": 47,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 8,
+      "khe hở px": 49,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 10,
+      "khe hở px": 51,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 15,
+      "khe hở px": 57,
+      "nối": false
+     },
+     {
+      "khe hở % cạnh thẻ": 20,
+      "khe hở px": 62,
+      "nối": false
+     }
+    ],
+    "phân tử": 64,
+    "đúng chất": 37,
+    "liên kết đúng": 149,
+    "liên kết thừa": 0,
+    "liên kết thiếu": 70,
+    "khoảng cách liên kết thừa": {}
+   }
+  }
+ },
+ "chất lượng ảnh": [
+  {
+   "mờ σ": 0,
+   "độ nét": 365.9,
+   "kết luận": "đạt"
+  },
+  {
+   "mờ σ": 1,
+   "độ nét": 22.8,
+   "kết luận": "nhắc"
+  },
+  {
+   "mờ σ": 2,
+   "độ nét": 3.6,
+   "kết luận": "chặn"
+  },
+  {
+   "mờ σ": 3,
+   "độ nét": 1.1,
+   "kết luận": "chặn"
+  },
+  {
+   "mờ σ": 5,
+   "độ nét": 0.3,
+   "kết luận": "chặn"
+  },
+  {
+   "mờ σ": 8,
+   "độ nét": 0.2,
+   "kết luận": "chặn"
+  },
+  {
+   "độ sáng ×": 1.0,
+   "độ sáng": 179.0,
+   "kết luận": "đạt"
+  },
+  {
+   "độ sáng ×": 0.5,
+   "độ sáng": 89.5,
+   "kết luận": "nhắc"
+  },
+  {
+   "độ sáng ×": 0.3,
+   "độ sáng": 53.3,
+   "kết luận": "chặn"
+  },
+  {
+   "độ sáng ×": 0.15,
+   "độ sáng": 26.2,
+   "kết luận": "chặn"
+  }
+ ],
+ "thời gian chạy s": 81.0
+}

@@ -240,7 +240,8 @@ def summary():
          "phần mềm có thể nói ngay \"đây là nước\" hoặc \"thiếu một liên kết O–H\" không? Câu hỏi đó trở thành CHEM VISION.")
     h("2. Mô tả sản phẩm", 2)
     para("CHEM VISION là ứng dụng web (và bản máy tính) gồm bộ thẻ nguyên tố lục giác in được và phần mềm nhận diện. Nguyên tắc "
-         "thiết kế là **AI chỉ \"nhìn\", phần mềm \"kết luận\"**:")
+         "thiết kế là **AI hỗ trợ nhận diện thẻ, còn đúng hay sai do thuật toán chấm theo cấu trúc**, nên kết quả nào cũng giải "
+         "thích được. Với học sinh, điều đó gói gọn trong một câu: **\"Ghép là biết, sai là hiểu.\"**")
     bullet("**Nhận diện:** thẻ in có mã vuông ArUco được OpenCV đọc ngay trên máy, ngoại tuyến và không tốn tiền; thẻ thường được Gemini "
            "đọc ký hiệu và khung bao. Ảnh chất lượng kém (tối, mờ, lóa) bị cảnh báo trước khi gửi.")
     bullet("**Kết luận:** liên kết giữa các thẻ được đo bằng hình học, rồi thuật toán đối sánh đồ thị so với **70 chất** của chương trình "
@@ -256,7 +257,7 @@ def summary():
            f"LTV/CAC kênh trường {vn(U['ltv_cac'])} lần, thu hồi vốn đầu tư ban đầu ở tháng thứ {PAYBACK}.")
     para("**Trung thực về bằng chứng:** phần mềm đã có 245 kiểm thử tự động và 113 kiểm thử giao diện theo vai người dùng, nhưng "
          "**chưa thử nghiệm với học sinh thật**. Mục 2.3 trình bày thiết kế thử nghiệm đối chứng và các chỉ tiêu nhóm cam kết đo.")
-    figure("h01_quy_trinh", "Quy trình của CHEM VISION: AI chỉ \"nhìn\", phần mềm \"kết luận\"")
+    figure("h01_quy_trinh", "Quy trình của CHEM VISION: nhận diện thẻ, chấm theo cấu trúc, phản hồi ngay")
 
 
 def canvas():
@@ -284,8 +285,8 @@ def problem():
     h("1.2. Tầm nhìn và sứ mệnh", 3)
     bullet("**Tầm nhìn:** trở thành bộ học cụ \"vật thật + AI\" tiêu chuẩn cho môn Khoa học tự nhiên THCS ở Việt Nam, từ hóa học mở "
            "rộng sang vật lý và sinh học.")
-    bullet("**Sứ mệnh:** để mỗi học sinh được chạm vào kiến thức và được phản hồi ngay; để AI hỗ trợ việc nhìn, còn việc kết luận luôn "
-           "minh bạch, giải thích được.")
+    bullet("**Sứ mệnh:** để mỗi học sinh được chạm vào kiến thức và được phản hồi ngay; để AI hỗ trợ việc nhận diện, còn việc chấm "
+           "đúng sai luôn minh bạch, giải thích được.")
     h("1.3. Giá trị cho bốn bên liên quan", 3)
     figure("h03_gia_tri", "Giá trị cho bốn nhóm thụ hưởng")
     para("Bốn con số trên đều là đặc tính của sản phẩm hoặc của mức giá, không phải kết quả học tập. Nhóm cố ý không đưa ra con số "
@@ -358,10 +359,10 @@ def market():
 
 def product():
     h("3. TÍNH NĂNG, KIẾN TRÚC LÕI VÀ LỢI THẾ CẠNH TRANH", 2)
-    h("3.1. Kiến trúc \"AI chỉ nhìn, phần mềm kết luận\"", 3)
-    para("Hệ thống tách hai việc mà các sản phẩm AI thường gộp làm một. **Việc nhìn** (thẻ nào ở đâu) do bộ đọc mã ArUco đảm nhận khi "
+    h("3.1. Kiến trúc: tách nhận diện khỏi chấm điểm", 3)
+    para("Hệ thống tách hai việc mà các sản phẩm AI thường gộp làm một. **Việc nhận diện** (thẻ nào ở đâu) do bộ đọc mã ArUco đảm nhận khi "
          "thẻ có mã, và do Gemini đảm nhận khi thẻ không có mã; lời nhắc gửi Gemini không chứa công thức nên AI không bị gợi ý đáp án. "
-         "**Việc kết luận** (đây là chất gì, sai ở đâu) luôn do thuật toán xác định: liên kết được đo bằng khe hở giữa các thẻ trên ảnh, "
+         "**Việc chấm** (đây là chất gì, sai ở đâu) luôn do thuật toán xác định: liên kết được đo bằng khe hở giữa các thẻ trên ảnh, "
          "rồi đồ thị phân tử được đối sánh với cơ sở dữ liệu 70 chất. Mọi lời giải thích lỗi sinh ra từ chẩn đoán này, không do AI tự nghĩ.")
     para(f"Lợi ích kinh doanh trực tiếp: khi trường dùng bộ thẻ in có mã, mỗi lượt KIỂM TRA không tốn tiền đám mây và không gửi ảnh ra "
          f"ngoài. Gemini chỉ là phương án dự phòng, có model dự phòng thứ hai (gemini-flash-lite-latest) khi model chính lỗi hoặc hết hạn mức.")
