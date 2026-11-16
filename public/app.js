@@ -114,6 +114,15 @@ async function api(path, body) {
   return { status: res.status, json };
 }
 
+/* ------------------------------------------------------------------ giao diện sáng / tối */
+const isDark = () => document.documentElement.dataset.theme === "dark";
+function showThemeIcon() { $("btn-theme").firstElementChild.className = "ic ic-" + (isDark() ? "sun" : "moon"); }   // biểu tượng là nền sẽ chuyển sang
+function toggleTheme() {
+  document.documentElement.dataset.theme = isDark() ? "light" : "dark";
+  showThemeIcon();
+  savePrefs();
+}
+
 /* ------------------------------------------------------------------ điều hướng giữa các thẻ */
 function showView(name, opts = {}) {
   if (!VIEWS.includes(name)) name = "ghep";
@@ -144,6 +153,7 @@ async function init() {
   if (saved) $("code").value = saved;
   saveLogs(loadLogs());
   refreshStars(false);
+  showThemeIcon();
   updateCheckState();
   try {
     const { status, json } = await api("/api/meta");
@@ -408,9 +418,18 @@ async function toggleCamera() {
     }
   } catch (e) { /* không liệt kê được: bỏ qua */ }
 }
+/* Sau khi KIỂM TRA, khung hình đứng lại ở ảnh vừa chụp (để xem khung thẻ và liên kết); nút này trả về hình trực tiếp */
+function resumeLive() {
+  $("btn-live").hidden = true;
+  if (!stream) return;
+  $("snap").hidden = true;
+  $("stage").classList.remove("shot");
+  setStep(2);
+}
 function stopCamera() {
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
+  $("btn-live").hidden = true;
   stopQualityWatch();
   $("video").srcObject = null;
   $("stage").classList.remove("live");
@@ -521,6 +540,7 @@ async function analyze(payload, withOverlay) {
     say("Mất kết nối", "Kiểm tra mạng rồi thử lại.", "warn", "think");
   } finally {
     setBusy(false);
+    $("btn-live").hidden = !stream || !!payload.demo;
   }
 }
 function render(out, task, withOverlay) {
@@ -1008,6 +1028,9 @@ $("camera-select").addEventListener("change", async () => { stopCamera(); await 
 $("file-input").addEventListener("change", (e) => { loadFile(e.target.files[0]); e.target.value = ""; });
 $("btn-check").addEventListener("click", () => { const img = grab(); if (img) analyze({ image: img }, true); });
 $("btn-demo").addEventListener("click", () => analyze({ demo: $("scenario").value }, false));
+$("welcome-demo").addEventListener("click", () => analyze({ demo: $("scenario").value }, false));
+$("btn-live").addEventListener("click", resumeLive);
+$("btn-theme").addEventListener("click", toggleTheme);
 $("sg-yes").addEventListener("click", () => answerSuggestion(true));
 $("sg-no").addEventListener("click", () => answerSuggestion(false));
 $("speak").addEventListener("change", savePrefs);
