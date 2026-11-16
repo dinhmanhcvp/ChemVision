@@ -9,6 +9,8 @@ Hai nơi chạy được, chọn một hoặc dùng cả hai:
 | Gói miễn phí | Đủ dùng | Máy chủ **ngủ sau 15 phút** không ai truy cập, lần mở đầu chờ khoảng 1 phút; lớp học đang mở mất khi máy chủ ngủ hoặc khởi động lại |
 | Địa chỉ | `https://<tên>.vercel.app` | `https://<tên>.onrender.com` |
 
+Sổ tay hướng dẫn người dùng nằm ở `/huong-dan.html` trên cả hai nơi (gửi địa chỉ này cho giáo viên và học sinh).
+
 Cả hai đều cho địa chỉ **HTTPS**, điều bắt buộc để mở được camera trên điện thoại.
 
 **Khuyên dùng cho ngày quay video:** Render (bật lớp học nhanh). Nhớ **mở trang trước giờ quay 2 phút** cho máy chủ thức dậy, và tạo lớp mới ngay trước cảnh 8.
@@ -22,19 +24,28 @@ Cả hai đều cho địa chỉ **HTTPS**, điều bắt buộc để mở đư
 - Đăng ký **vercel.com** và/hoặc **render.com** bằng chính tài khoản GitHub đó (nút "Continue with GitHub").
 
 ### 0.2. Đưa mã mới nhất lên GitHub
-Vercel và Render lấy mã từ GitHub, không lấy từ máy tính. Các thay đổi mới (tệp `render.yaml`, sửa `scripts/dev_server.py`) phải được đẩy lên trước. Mở terminal trong thư mục dự án:
+Vercel và Render lấy mã từ GitHub, không lấy từ máy tính. Mở terminal trong thư mục dự án, kiểm tra rồi đẩy lên:
 
 ```bash
-git add render.yaml scripts/dev_server.py
+git status
 ```
 ```bash
-git commit -m "Cho phép chạy máy chủ trên Render.com"
+python -m unittest discover -s chem_vision/tests -t .
+```
+Phải thấy `OK`. Rồi:
+```bash
+git add -A
+```
+```bash
+git commit -m "Cập nhật giao diện, sổ tay hướng dẫn, cấu hình triển khai"
 ```
 ```bash
 git push origin main
 ```
 
-Mở `https://github.com/dinhmanhcvp/ChemVision`, thấy tệp `render.yaml` ở danh sách là được.
+Mở `https://github.com/dinhmanhcvp/ChemVision`, thấy `vercel.json`, `render.yaml`, thư mục `public/` và `api/` là được. Nếu đang làm trên nhánh khác, tạo Pull Request rồi **Merge** vào `main`, vì cả hai nơi deploy từ `main`.
+
+Bản chạy thử trên máy trước khi đẩy lên: `python scripts/dev_server.py 3000` rồi mở `http://localhost:3000`.
 
 ### 0.3. Khóa Gemini và mã truy cập (không bắt buộc)
 **Thẻ in có mã vuông (bộ thẻ PDF) chạy được mà không cần khóa hay mã gì.** Chỉ cần bước này nếu muốn đọc cả thẻ thường (thẻ tự vẽ, không có mã vuông).
@@ -56,7 +67,7 @@ Mở `https://github.com/dinhmanhcvp/ChemVision`, thấy tệp `render.yaml` ở
 3. Màn hình **Configure Project**:
    - **Framework Preset:** chọn **Other**.
    - **Root Directory:** để nguyên `./`.
-   - **Build and Output Settings:** để nguyên (tệp `vercel.json` đã khai báo thư mục `public` và các hàm `api/*.py`).
+   - **Build and Output Settings:** để nguyên (tệp `vercel.json` đã khai báo thư mục `public` và hàm `api/index.py`).
 
 ### A2. Biến môi trường (chỉ khi làm bước 0.3)
 Ngay trên màn hình đó, mở **Environment Variables**, thêm:

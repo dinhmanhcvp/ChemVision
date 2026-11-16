@@ -3,7 +3,6 @@
 Chạy: python scripts/dev_server.py [cổng]   (đọc GEMINI_API_KEY, ACCESS_CODE từ môi trường hoặc chem_vision/.env)
 Cũng là máy chủ khi triển khai lên Render.com (xem render.yaml): HOST, PORT lấy từ môi trường.
 """
-import importlib
 import json
 import mimetypes
 import os
@@ -34,8 +33,8 @@ def security_headers() -> dict:
 
 class Dev(BaseHTTPRequestHandler):
     def _api(self, route):
-        mod = importlib.import_module(f"api.{route}")
-        getattr(mod.handler, "do_" + self.command)(self)
+        from chem_vision.web import serve
+        serve(self, route)
 
     def _e2e(self):
         """Chỉ khi đặt E2E=1: phục vụ kịch bản kiểm thử giao diện để nạp vào trang (xem scripts/e2e_browser.js)."""
@@ -80,6 +79,7 @@ class Dev(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     load_env()
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows: đầu ra cp1252 làm dòng in tiếng Việt bên dưới gây lỗi, máy chủ không khởi động
     port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 3000))
     host = os.environ.get("HOST", "127.0.0.1")   # Render.com: HOST=0.0.0.0, cổng lấy từ biến PORT
     print(f"http://{host}:{port}  (GEMINI_API_KEY: {'có' if os.environ.get('GEMINI_API_KEY') else 'chưa'}, "

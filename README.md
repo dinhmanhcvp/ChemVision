@@ -34,6 +34,8 @@ Chưa có: glucozơ, saccarozơ, polime (quá nhiều nguyên tử để ghép b
 - **Bộ thẻ in được:** PDF A4 cho lớp 7, 8, 9 (`public/the-in/`), tạo bằng `scripts/make_cards.py`
 - **Thử nghiệm đối chứng:** bộ câu hỏi trước/sau, thiết kế và công cụ phân tích thống kê (`docs/`, `scripts/analyze_experiment.py`)
 
+**Hướng dẫn sử dụng từng bước** (học sinh, giáo viên): `public/huong-dan.html`, mở được ngay trong ứng dụng (nút "Hướng dẫn" ở đầu trang) hoặc tại `/huong-dan.html`.
+
 Có hai cách dùng, chung phần lõi `chem_vision/core.py`:
 
 | | Bản web (Vercel) | Bản máy tính (Tkinter) |
@@ -63,7 +65,7 @@ Nút **Chạy thử** dùng dữ liệu dựng sẵn, không cần khóa hay mã
 
 ## Triển khai lên Vercel
 
-Cấu hình có sẵn: `vercel.json` (thư mục `public`, hàm `api/*.py` tối đa 60 giây, vùng `sin1`, header bảo mật và quyền camera),
+Cấu hình có sẵn: `vercel.json` (thư mục `public`, hàm `api/index.py` (gom mọi `/api/<tên>`) tối đa 60 giây, vùng `sin1`, header bảo mật và quyền camera),
 `requirements.txt` (chỉ `numpy` và `opencv-python-headless`), `.python-version` (3.12), `.vercelignore`.
 
 1. Đưa mã lên GitHub, vào vercel.com, **Add New → Project**, chọn repo, **Framework Preset: Other**.
@@ -152,7 +154,7 @@ nền sáng và tối, nút chạm tối thiểu 48 px, tôn trọng giảm chuy
 | `chem_vision/recognizer.py`, `retry.py` | gọi Gemini bằng REST, thử lại và model dự phòng, bộ giả lập |
 | `chem_vision/pedagogy.py`, `reactions.py` | giải thích lỗi và quan niệm sai; cân bằng phương trình |
 | `chem_vision/features.py`, `classroom.py` | thử thách, nhật ký; lớp học trực tuyến |
-| `chem_vision/web.py`, `api/*.py` | bản web (điểm vào, hàm serverless) |
+| `chem_vision/web.py`, `api/index.py` | bản web (điểm vào, hàm serverless) |
 | `public/` | giao diện web: `index.html`, `style.css`, `app.js` (điều khiển), `ui.js` (biểu tượng, con dấu, pháo giấy, thông báo), `progress.js` (sao, huy hiệu), `img/` (con dấu, minh họa, 27 biểu tượng) |
 | `chem_vision/app.py`, `speech.py` | giao diện và giọng nói bản máy tính |
 | `scripts/` | `dev_server.py`, `make_cards.py`, `analyze_experiment.py` |

@@ -338,7 +338,7 @@ class ThroughWeb(unittest.TestCase):
         self.assertEqual(status, 429)
 
     def test_api_file_exists(self):
-        self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", "api", "classroom.py")))
+        self.assertTrue("classroom" in web.ROUTES)
 
 
 if __name__ == "__main__":

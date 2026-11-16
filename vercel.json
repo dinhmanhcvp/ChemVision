@@ -4,8 +4,11 @@
   "regions": [
     "sin1"
   ],
+  "rewrites": [
+    { "source": "/api/:route", "destination": "/api/index?route=:route" }
+  ],
   "functions": {
-    "api/*.py": {
+    "api/index.py": {
       "maxDuration": 60,
       "includeFiles": "chem_vision/**",
       "excludeFiles": "chem_vision/tests/**"

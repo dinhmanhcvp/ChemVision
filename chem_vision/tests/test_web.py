@@ -401,7 +401,7 @@ class VercelConfig(unittest.TestCase):
     def test_vercel_json(self):
         cfg = json.load(open(os.path.join(ROOT, "vercel.json"), encoding="utf-8"))
         self.assertEqual(cfg["outputDirectory"], "public")
-        fn = cfg["functions"]["api/*.py"]
+        fn = cfg["functions"]["api/index.py"]
         self.assertLessEqual(fn["maxDuration"], 60)
         self.assertIn("chem_vision", fn["includeFiles"])
         headers = {h["key"]: h["value"] for h in cfg["headers"][0]["headers"]}
@@ -409,7 +409,7 @@ class VercelConfig(unittest.TestCase):
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
 
     def test_files_present(self):
-        for rel in ("api/analyze.py", "api/meta.py", "api/hint.py", "api/report.py", "api/equation.py", "api/classroom.py",
+        for rel in ("api/index.py", "pyproject.toml",
                     "public/the-in/bo-the-lop-7.pdf", "public/the-in/bo-the-lop-8.pdf", "public/the-in/bo-the-lop-9.pdf",
                     "public/index.html",
                     "public/app.js", "public/style.css", "requirements.txt", ".python-version"):

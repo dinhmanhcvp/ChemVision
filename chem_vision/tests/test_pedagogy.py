@@ -109,7 +109,6 @@ class WebEquation(unittest.TestCase):
 
     def test_route_registered(self):
         self.assertIn("equation", web.ROUTES)
-        self.assertTrue(os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", "api", "equation.py")))
 
 
 class Explanations(unittest.TestCase):

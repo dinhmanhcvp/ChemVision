@@ -31,12 +31,14 @@ CLIENT_ONLY = {
     "howto-open": "hiện lại lời chào",
     "eq-next": "chuyển sang phương trình kế tiếp",
     "btn-csv": "lưu tệp CSV đã nhận từ máy chủ",
+    "btn-live": "quay lại hình camera trực tiếp",
+    "btn-theme": "đổi nền sáng hoặc tối",
 }
 for _v in VIEWS:
     CLIENT_ONLY["tab-" + _v] = "chuyển thẻ"
 # Nút còn lại phải dẫn tới một lời gọi máy chủ (trực tiếp hoặc qua các hàm được gọi)
 SERVER_BACKED = {
-    "btn-check": "/api/analyze", "btn-demo": "/api/analyze", "ch-hint": "/api/hint", "eq-check": "/api/equation",
+    "btn-check": "/api/analyze", "btn-demo": "/api/analyze", "welcome-demo": "/api/analyze", "ch-hint": "/api/hint", "eq-check": "/api/equation",
     "eq-reveal": "/api/equation", "btn-report": "/api/report", "class-create": "/api/classroom",
     "class-open": "/api/classroom", "class-join": "/api/classroom", "class-end": "/api/classroom",
     "ch-skip": "/api/classroom", "ch-end": "/api/classroom", "sg-yes": "/api/classroom", "sg-no": "/api/classroom",
@@ -112,7 +114,7 @@ class Wiring(unittest.TestCase):
 
     def test_every_endpoint_called_by_js_exists_as_function(self):
         for endpoint in set(re.findall(r'"/api/([a-z]+)"', JS)):
-            self.assertTrue(os.path.isfile(os.path.join(ROOT, "api", endpoint + ".py")), endpoint)
+            self.assertIn(endpoint, __import__("chem_vision.web", fromlist=["ROUTES"]).ROUTES)
 
     def test_no_browser_dialogs_and_safe_text_insertion(self):
         self.assertNotRegex(JS, r"(?<![\w.])(confirm|alert|prompt)\(")
@@ -174,7 +176,7 @@ def tokens(block):
 
 class DesignLanguage(unittest.TestCase):
     light = tokens(re.search(r":root \{(.*?)\n\}", CSS, re.S).group(1))
-    dark = {**light, **tokens(re.search(r'prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{(.*?)\n  \}', CSS, re.S).group(1))}
+    dark = {**light, **tokens(re.search(r':root\[data-theme="dark"\] \{(.*?)\n\}', CSS, re.S).group(1))}
 
     def check_pairs(self, t, pairs):
         for fg, bg, minimum in pairs:
@@ -187,7 +189,7 @@ class DesignLanguage(unittest.TestCase):
         ("ok", "ok-l", 4.5), ("close", "close-l", 4.5), ("bad", "bad-l", 4.5),   # tiêu đề kết quả
         ("ok", "surface", 4.5), ("close", "surface", 4.5), ("bad", "surface", 4.5),
         ("on-hl", "hl", 4.5),                                                    # chữ trên nền bút dạ vàng (thẻ đang chọn, số sao)
-        ("ink", "ok-l", 4.5),
+        ("ink", "ok-l", 4.5), ("on-accent", "accent", 4.5), ("accent", "bg", 4.5), ("accent", "surface", 4.5),
     ]
 
     def test_light_theme_contrast_meets_wcag_aa(self):
