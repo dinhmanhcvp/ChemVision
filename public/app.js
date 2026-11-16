@@ -65,8 +65,11 @@ function speak(text) {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(toSpeech(text));
     u.lang = "vi-VN";
-    const vi = window.speechSynthesis.getVoices().find((v) => v.lang && v.lang.toLowerCase().startsWith("vi"));
-    if (vi) u.voice = vi;
+    // Chọn giọng tiếng Việt tự nhiên nhất có trên máy (Edge: HoaiMy/NamMinh Online Natural; Chrome: Google Tiếng Việt)
+    const score = (v) => (/natural|online/i.test(v.name) ? 4 : 0) + (/hoaimy|namminh|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
+    const vi = window.speechSynthesis.getVoices().filter((v) => /^vi\b/i.test(v.lang.replace("_", "-"))).sort((a, b) => score(b) - score(a))[0];
+    if (vi) { u.voice = vi; u.lang = vi.lang; }
+    u.rate = 0.95;
     window.speechSynthesis.speak(u);
   } catch (e) { /* không có giọng đọc: bỏ qua */ }
 }
