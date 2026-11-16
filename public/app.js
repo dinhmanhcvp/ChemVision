@@ -54,13 +54,21 @@ function askConfirm(text, yesLabel = "Đồng ý") {
 }
 const groupName = () => ($("group").value.trim() || "Nhóm 1").slice(0, 30);
 function savePrefs() {
-  setJson("local", PREF_KEY, { group: $("group").value, grade: gradeFilter, speak: $("speak").checked, fx: $("fx").checked, sfx: $("sfx").checked, view: currentView });
+  setJson("local", PREF_KEY, { group: $("group").value, grade: gradeFilter, speak: $("speak").checked, fx: $("fx").checked, sfx: $("sfx").checked, view: currentView,
+    theme: document.documentElement.dataset.theme });   // chỉ có khi người dùng tự chọn; public/theme.js áp dụng trước khi vẽ trang
 }
+/* Đọc công thức hóa học theo cách người Việt đọc: H2O → "hát hai ô", Ca(OH)2 → "xê a, mở ngoặc ô hát đóng ngoặc hai". */
+const LETTER = { A: "a", B: "bê", C: "xê", D: "đê", E: "e", F: "ép", G: "giê", H: "hát", I: "i", K: "ca", L: "lờ", M: "mờ", N: "nờ", O: "ô",
+  P: "pê", Q: "qui", R: "rờ", S: "ét", T: "tê", U: "u", V: "vê", X: "ích", Y: "i", Z: "dét" };
+const SYM = "Ag|Al|Au|Ba|Br|Ca|Cl|Cu|Fe|He|Li|Mg|Na|Si|Zn|C|F|H|I|K|N|O|P|S";   // đúng các nguyên tố trong bộ thẻ; tránh đọc nhầm chữ thường như "Em"
+const FORMULA = new RegExp(String.raw`(^|[^\p{L}\d])((?:\(?(?:${SYM})\d*\)?\d*)+)(?![\p{L}\d])`, "gu");
 function toSpeech(text) {
-  return text.replace(/\b[A-Z][a-z]?\s*\(([^()0-9A-Z]+)\)/g, "$1").replace(/\s*\((?:[A-Z][A-Za-z0-9()]*)\)/g, "");
+  return text.replace(/\b[A-Z][a-z]?\s*\(([^()0-9A-Z]+)\)/g, "$1").replace(/\s+\((?:[A-Z][A-Za-z0-9()]*)\)/g, "")
+    .replace(FORMULA, (_, pre, f) => pre + f.replace(new RegExp(SYM, "g"), (m) => " " + [...m].map((c) => LETTER[c.toUpperCase()]).join(" ") + " ")
+      .replace(/\(/g, " mở ngoặc ").replace(/\)/g, " đóng ngoặc ").replace(/\s+/g, " ").trim() + " ")
+    .replace(/\s*→\s*/g, " tạo thành ").replace(/\s\+\s/g, " cộng ").replace(/\s+/g, " ").replace(/\s+([.,;:!?])/g, "$1").trim();
 }
-function speak(text) {
-const ttsCache = new Map(), viVoice = () => speechSynthesis.getVoices().filter((v) => /^vi/i.test(v.lang.replace("_", "-")))
+const ttsCache = new Map(), viVoice = () => speechSynthesis.getVoices().filter((v) => /^vi\b/i.test(v.lang.replace("_", "-")))
   .sort((a, b) => ttsScore(b) - ttsScore(a))[0];
 // Chọn giọng Việt tự nhiên nhất có trên máy (Edge: HoaiMy/NamMinh Online Natural; Chrome: Google Tiếng Việt)
 const ttsScore = (v) => (/natural|online/i.test(v.name) ? 4 : 0) + (/hoaimy|namminh|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
@@ -77,7 +85,9 @@ async function speakFromServer(text) {            // máy không có giọng Vi�
   ttsAudio = new Audio(url);
   ttsAudio.play().catch(() => {});
 }
-  if (!$("speak").checked || !("speechSynthesis" in window) || !text) return;
+function speak(text) {
+  if (!$("speak").checked || !text) return;
+  text = toSpeech(text);
   try {
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     const vi = "speechSynthesis" in window && viVoice();
