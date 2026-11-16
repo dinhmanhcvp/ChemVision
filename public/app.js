@@ -60,16 +60,30 @@ function toSpeech(text) {
   return text.replace(/\b[A-Z][a-z]?\s*\(([^()0-9A-Z]+)\)/g, "$1").replace(/\s*\((?:[A-Z][A-Za-z0-9()]*)\)/g, "");
 }
 function speak(text) {
+const ttsCache = new Map(), viVoice = () => speechSynthesis.getVoices().filter((v) => /^vi/i.test(v.lang.replace("_", "-")))
+  .sort((a, b) => ttsScore(b) - ttsScore(a))[0];
+// Chọn giọng Việt tự nhiên nhất có trên máy (Edge: HoaiMy/NamMinh Online Natural; Chrome: Google Tiếng Việt)
+const ttsScore = (v) => (/natural|online/i.test(v.name) ? 4 : 0) + (/hoaimy|namminh|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
+let ttsAudio = null;
+async function speakFromServer(text) {            // máy không có giọng Việt: nhờ máy chủ tạo MP3
+  let url = ttsCache.get(text);
+  if (!url) {
+    const { json } = await api("/api/tts", { text: text.slice(0, 400) });
+    if (!json.audio) return;
+    url = URL.createObjectURL(new Blob([Uint8Array.from(atob(json.audio), (c) => c.charCodeAt(0))], { type: "audio/mpeg" }));
+    ttsCache.set(text, url);
+  }
+  if (ttsAudio) ttsAudio.pause();
+  ttsAudio = new Audio(url);
+  ttsAudio.play().catch(() => {});
+}
   if (!$("speak").checked || !("speechSynthesis" in window) || !text) return;
   try {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(toSpeech(text));
-    u.lang = "vi-VN";
-    // Chọn giọng tiếng Việt tự nhiên nhất có trên máy (Edge: HoaiMy/NamMinh Online Natural; Chrome: Google Tiếng Việt)
-    const score = (v) => (/natural|online/i.test(v.name) ? 4 : 0) + (/hoaimy|namminh|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
-    const vi = window.speechSynthesis.getVoices().filter((v) => /^vi\b/i.test(v.lang.replace("_", "-"))).sort((a, b) => score(b) - score(a))[0];
-    if (vi) { u.voice = vi; u.lang = vi.lang; }
-    u.rate = 0.95;
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    const vi = "speechSynthesis" in window && viVoice();
+    if (!vi) return void speakFromServer(text).catch(() => {});
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = vi; u.lang = vi.lang; u.rate = 0.95;
     window.speechSynthesis.speak(u);
   } catch (e) { /* không có giọng đọc: bỏ qua */ }
 }

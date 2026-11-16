@@ -397,6 +397,20 @@ class MarkersAndQuality(unittest.TestCase):
         self.assertTrue(any("tối" in w for w in out["quality"]["warnings"]))
 
 
+class Tts(unittest.TestCase):
+    def test_chunks_and_handler(self):
+        self.assertEqual(web._tts_chunks("a " * 300, 20)[0], "a a a a a a a a a a")
+        calls = []
+        st, out = web.handle_tts({"text": "Xin chào"}, {"x-forwarded-for": "9.9.9.1"}, fetch=lambda t: calls.append(t) or b"MP3")
+        self.assertEqual((st, base64.b64decode(out["audio"]), calls), (200, b"MP3", ["Xin chào"]))
+        for bad in ({}, {"text": "  "}, {"text": "x" * 401}, {"text": 5}):
+            self.assertEqual(web.handle_tts(bad, HDR)[0], 400)
+
+    def test_upstream_failure_is_502(self):
+        def boom(t): raise OSError
+        self.assertEqual(web.handle_tts({"text": "a"}, {"x-forwarded-for": "9.9.9.2"}, fetch=boom)[0], 502)
+
+
 class VercelConfig(unittest.TestCase):
     def test_vercel_json(self):
         cfg = json.load(open(os.path.join(ROOT, "vercel.json"), encoding="utf-8"))

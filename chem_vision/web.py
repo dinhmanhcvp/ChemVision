@@ -12,6 +12,8 @@ import json
 import os
 import re
 import time
+import urllib.parse
+import urllib.request
 from collections import Counter, defaultdict, deque
 
 from .core import (BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
@@ -240,6 +242,46 @@ def handle_report(payload: dict) -> tuple[int, dict]:
     return 200, {"ok": True, "report": log.teacher_report(), "csv": log.to_csv(), "rows": len(clean)}
 
 
+TTS_URL = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=vi&q="
+TTS_MAX_CHARS = 400
+TTS_RATE = (30, 60.0)
+
+
+def _tts_chunks(text: str, size: int = 180) -> list[str]:
+    """Cắt câu theo khoảng trắng thành các đoạn ngắn (dịch vụ giọng đọc chỉ nhận ~200 ký tự mỗi lần)."""
+    out, cur = [], ""
+    for word in text.split():
+        if cur and len(cur) + 1 + len(word) > size:
+            out.append(cur)
+            cur = word
+        else:
+            cur = f"{cur} {word}".strip()
+    return out + [cur] if cur else out
+
+
+def fetch_tts(text: str) -> bytes:
+    audio = b""
+    for part in _tts_chunks(text):
+        req = urllib.request.Request(TTS_URL + urllib.parse.quote(part), headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            audio += r.read()
+    return audio
+
+
+def handle_tts(payload: dict, headers, fetch=fetch_tts) -> tuple[int, dict]:
+    """Giọng đọc tiếng Việt cho máy học sinh không cài sẵn giọng Việt: trả MP3 (base64)."""
+    text = payload.get("text")
+    if not isinstance(text, str) or not text.strip() or len(text) > TTS_MAX_CHARS:
+        return _err(400, f"Cần một đoạn chữ không quá {TTS_MAX_CHARS} ký tự.")
+    if rate_limited(f"tts:{client_ip(headers)}", limit=TTS_RATE):
+        return _err(429, "Đọc quá nhanh, thử lại sau ít giây.")
+    try:
+        audio = fetch(text.strip())
+    except Exception:
+        return _err(502, "Không tạo được giọng đọc.")
+    return 200, {"ok": True, "audio": base64.b64encode(audio).decode("ascii")}
+
+
 def _class_limiter(action: str, headers) -> bool:
     return rate_limited(f"{action}:{client_ip(headers)}", limit=classroom.RATE[action])
 
@@ -249,6 +291,7 @@ ROUTES = {"meta": ("GET", lambda p, env, h: handle_meta(env)),
           "analyze": ("POST", lambda p, env, h: handle_analyze(p, env, h)),
           "hint": ("POST", lambda p, env, h: handle_hint(p)),
           "equation": ("POST", lambda p, env, h: handle_equation(p)),
+          "tts": ("POST", lambda p, env, h: handle_tts(p, h)),
           "report": ("POST", lambda p, env, h: handle_report(p))}
 
 

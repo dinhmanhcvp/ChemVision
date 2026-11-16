@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 PUBLIC = os.path.join(ROOT, "public")
-ROUTES = {"meta", "analyze", "hint", "report", "equation", "classroom"}
+from chem_vision.web import ROUTES   # cùng danh sách với api/index.py
 
 
 def load_env():
