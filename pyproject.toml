@@ -1,2 +1,8 @@
+[project]
+name = "chem-vision"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["numpy", "opencv-python-headless"]
+
 [tool.vercel]
 entrypoint = "api.index:handler"
