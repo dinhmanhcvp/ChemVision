@@ -100,6 +100,18 @@ class Links(unittest.TestCase):
         a = analyze(json.dumps(apply_geometry(img, data)))
         self.assertEqual([r.kind for _, r in a.clusters], ["WRONG_BONDS"])
 
+    def test_four_around_centre_no_diagonal_links(self):
+        """CH4: C ở giữa, 4 H trên/dưới/trái/phải. Các H kề nhau chạm ở góc thẻ C nhưng không được nối với nhau."""
+        img = table()
+        cx, cy = 320, 240
+        pts = [(cx, cy), (cx - FLAT, cy), (cx + FLAT, cy), (cx, cy - FLAT), (cx, cy + FLAT)]
+        draw(img, *pts[0], (120, 120, 230))
+        for p in pts[1:]:
+            draw(img, int(p[0]), int(p[1]), (200, 200, 240))
+        cards = [card(i, "C" if i == 0 else "H", *p) for i, p in enumerate(pts)]
+        links, _ = self.links(img, {"cards": cards})
+        self.assertEqual(links, {(0, 1), (0, 2), (0, 3), (0, 4)})
+
     def test_missing_box_keeps_ai_links(self):
         img, data = water_scene()
         del data["cards"][1]["box_2d"]

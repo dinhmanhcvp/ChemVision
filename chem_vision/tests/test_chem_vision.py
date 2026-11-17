@@ -173,6 +173,31 @@ class Matching(unittest.TestCase):
         self.assertIn("etanol", a.message)
 
 
+class Isomers(unittest.TestCase):
+    """Đồng phân thiếu một nguyên tử hoặc ghép sai phải được gợi ý đúng chất, không nhảy sang đồng phân kia."""
+
+    @staticmethod
+    def without(key, i):
+        g = BY_KEY[key].graph
+        keep = [j for j in range(len(g.labels)) if j != i]
+        ix = {o: n for n, o in enumerate(keep)}
+        return Graph.from_edges([g.labels[j] for j in keep], [(ix[a], ix[b]) for a, b in g.edges if a in ix and b in ix])
+
+    def test_missing_atom_suggests_same_isomer(self):
+        from chem_vision.core import match_cluster
+        for key in ("CH3OCH3", "C2H5OH", "C4H10", "C4H10-iso"):
+            for i in range(3, len(BY_KEY[key].graph.labels)):       # bỏ lần lượt từng nguyên tử H/O ở rìa
+                r = match_cluster(self.without(key, i))
+                if r.kind == "SUGGEST":
+                    self.assertEqual(r.suggestions[0].substance.key, key, (key, i))
+
+    def test_moved_h_keeps_nearest_isomer(self):
+        from chem_vision.core import match_cluster
+        g = BY_KEY["CH3OCH3"].graph      # một H chuyển từ C sang O: vẫn gần dimetyl ete hơn etanol
+        es = [x for x in g.edges if x != (0, 3)] + [(2, 3)]
+        self.assertEqual(match_cluster(Graph.from_edges(g.labels, es)).substance.key, "CH3OCH3")
+
+
 class Cleaning(unittest.TestCase):
     def test_json_in_code_fence(self):
         text = 'Đây là kết quả:\n```json\n{"cards":[{"id":1,"symbol":"H","confidence":0.9},{"id":2,"symbol":"Cl","confidence":0.9}],"connections":[[1,2]]}\n```'

@@ -467,6 +467,8 @@ def suggest(g: Graph, db=DATABASE) -> list[Suggestion]:
         found.append((sug, overlap))
     if not found:
         return []
+    if any(s.is_subgraph for s, _ in found):        # cụm chỉ là một phần của chất nào thì chỉ gợi ý chất đó, kể cả khi chất khác (đồng phân, chất đơn giản hơn) ít thiếu hơn
+        found = [(s, o) for s, o in found if s.is_subgraph]
     best = min(s.d for s, _ in found)
     shared_bonds = lambda s: sum((g.bond_types() & s.substance.graph.bond_types()).values())
     found = [(s, o) for s, o in found if s.d <= best + 1]
@@ -481,11 +483,16 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
             return ClusterResult("MATCH", g, s)
     warn = valence_warnings(g)
     if candidates:
-        best = min(candidates, key=lambda s: sum(_sum_diff(g, s.graph)))
+        best = min(candidates, key=lambda s: (_shape_diff(g, s.graph), sum(_sum_diff(g, s.graph))))
         extra, missing = _bond_diff(g, best.graph)
         return ClusterResult("WRONG_BONDS", g, best, candidates, extra, missing, valence_warnings=warn)
     sugs = suggest(g, db)
     return ClusterResult("SUGGEST" if sugs else "UNKNOWN", g, suggestions=sugs, valence_warnings=warn)
+
+
+def _shape_diff(g: Graph, ref: Graph) -> int:
+    """Số nguyên tử có 'vùng lân cận' khác chất mẫu (so màu Weisfeiler-Lehman): phân biệt đồng phân, nơi đếm loại liên kết không đủ."""
+    return sum(((Counter(_colors(g, 2)) - Counter(_colors(ref, 2))) + (Counter(_colors(ref, 2)) - Counter(_colors(g, 2)))).values())
 
 
 def _sum_diff(g, ref):

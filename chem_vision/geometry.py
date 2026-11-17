@@ -14,7 +14,8 @@ GAP_FRAC = 0.06      # khe hở liên tục tối đa (theo kích thước thẻ
 BG_DIST = 30.0       # ngưỡng khoảng cách màu (Lab) để coi một điểm là mặt bàn
 CLOSE_PX = 9         # nhân đóng: lấp vệt vân gỗ hẹp
 DUP_IOU = 0.5        # hai khung bao cùng kí hiệu trùm nhau từ mức này là một thẻ bị liệt kê hai lần
-OPEN_PX = 9          # nhân mở: xóa đốm "mặt bàn" nhỏ trên thẻ
+DIAG_RATIO = 1.25    # cạnh dài hơn hai cạnh kia từ mức này trong tam giác ba thẻ chạm nhau là đường chéo
+OPEN_PX = 9         # nhân mở: xóa đốm "mặt bàn" nhỏ trên thẻ
 
 
 def valid_box(box) -> bool:
@@ -77,7 +78,22 @@ def card_links(frame_bgr, cards: list[dict]):
             info.append({"a": a, "b": b, "ratio": round(ratio, 2), "gap_px": gap, "touching": touching})
             if touching:
                 links.append((a, b))
+    links = _drop_diagonals(links, centres)
     return links, {"card_size_px": round(size, 1), "pairs": info}
+
+
+def _drop_diagonals(links, centres):
+    """Tâm nối 4 thẻ (CH4): hai thẻ bên cạnh nhau chỉ chạm ở góc thẻ tâm nên đường nối xuyên qua thẻ tâm.
+    Trong tam giác ba thẻ cùng chạm, cạnh dài hơn hẳn (> DIAG_RATIO lần) hai cạnh kia là đường chéo, không phải liên kết."""
+    d = lambda a, b: float(np.hypot(centres[a][0] - centres[b][0], centres[a][1] - centres[b][1]))
+    have = {frozenset(p) for p in links}
+    drop = set()
+    for a, b in links:
+        for c in centres:
+            if c not in (a, b) and frozenset((a, c)) in have and frozenset((b, c)) in have \
+                    and d(a, b) > DIAG_RATIO * max(d(a, c), d(b, c)):
+                drop.add(frozenset((a, b)))
+    return [p for p in links if frozenset(p) not in drop]
 
 
 def _longest_run(flags) -> int:
