@@ -6,6 +6,7 @@ cạnh), còn phần mềm "kết luận" bằng đối sánh đồ thị liên 
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import re
 from collections import Counter
@@ -481,13 +482,38 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
     for s in candidates:
         if is_isomorphic(g, s.graph):
             return ClusterResult("MATCH", g, s)
+    contacts = _contact_edges(g)
+    reduced = []                                        # thẻ lục giác quanh nguyên tử tâm chạm nhau: bỏ các cạnh chỉ là chạm
+    for s in candidates:
+        k = len(g.edges) - len(s.graph.edges)           # số cạnh phải bỏ để đủ số liên kết của chất mẫu
+        for drop in itertools.combinations(contacts, k) if 0 < k <= len(contacts) else ():
+            h = Graph.from_edges(g.labels, [e for e in g.edges if e not in drop])
+            if is_isomorphic(h, s.graph):
+                # ưu tiên bỏ cạnh chạm giữa các thẻ nhẹ (H) trước: liên kết giữa hai nguyên tử nặng ít khi là chạm suông
+                reduced.append((sum(g.labels[i] != "H" for e in drop for i in e), h, s))
+    if reduced:
+        _, h, s = min(reduced, key=lambda r: r[0])
+        return ClusterResult("MATCH", h, s)
     warn = valence_warnings(g)
     if candidates:
         best = min(candidates, key=lambda s: (_shape_diff(g, s.graph), sum(_sum_diff(g, s.graph))))
         extra, missing = _bond_diff(g, best.graph)
         return ClusterResult("WRONG_BONDS", g, best, candidates, extra, missing, valence_warnings=warn)
     sugs = suggest(g, db)
+    if contacts and not any(s.is_subgraph for s in sugs):       # cụm chưa đủ thẻ: thử lại khi bỏ hết các cạnh chỉ là chạm
+        alt = suggest(Graph.from_edges(g.labels, [e for e in g.edges if e not in contacts]), db)
+        if any(s.is_subgraph for s in alt):
+            sugs = alt
     return ClusterResult("SUGGEST" if sugs else "UNKNOWN", g, suggestions=sugs, valence_warnings=warn)
+
+
+def _contact_edges(g: Graph, hub_degree: int = 4, limit: int = 14) -> list[tuple[int, int]]:
+    """Cạnh (u, v) mà u và v cùng nối với một nguyên tử tâm có từ 4 thẻ chạm trở lên (H2SO4, CH4...).
+    Thẻ lục giác quanh thẻ tâm kề sát nhau nên hình học luôn báo chúng chạm; hai thẻ đó thường không có liên kết thật."""
+    out = [(u, v) for u, v in g.edges if any(len(g.adj[w]) >= hub_degree for w in g.adj[u] & g.adj[v])]
+    return out if len(out) <= limit else []
+
+
 
 
 def _shape_diff(g: Graph, ref: Graph) -> int:

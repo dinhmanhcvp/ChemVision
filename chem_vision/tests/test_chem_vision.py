@@ -198,6 +198,28 @@ class Isomers(unittest.TestCase):
         self.assertEqual(match_cluster(Graph.from_edges(g.labels, es)).substance.key, "CH3OCH3")
 
 
+class HexContacts(unittest.TestCase):
+    """Thẻ lục giác quanh nguyên tử tâm (4 thẻ trở lên) kề sát nhau: cạnh chạm suông không được tính là liên kết."""
+
+    def test_touching_neighbours_of_hub_still_match(self):
+        import itertools
+        from chem_vision.core import match_cluster
+        for key in ("H2SO4", "H3PO4", "CH4", "Na2SO4", "CH3OH", "CH3COOH", "C2H5OH", "CH3OCH3", "C2H6", "C3H8"):
+            g = BY_KEY[key].graph
+            hubs = [w for w in range(len(g.labels)) if len(g.adj[w]) >= 4]
+            pairs = sorted({(u, v) for w in hubs for u, v in itertools.combinations(sorted(g.adj[w]), 2) if v not in g.adj[u]})
+            for k in range(1, min(len(pairs), 3) + 1):
+                for extra in itertools.islice(itertools.combinations(pairs, k), 30):
+                    r = match_cluster(Graph.from_edges(g.labels, g.edges + list(extra)))
+                    self.assertEqual((r.kind, r.substance.key), ("MATCH", key), (key, extra))
+
+    def test_real_wrong_bond_still_reported(self):
+        from chem_vision.core import match_cluster
+        g = BY_KEY["H2SO4"].graph       # liên kết H–H giữa hai nguyên tử không chung tâm: vẫn phải báo sai
+        r = match_cluster(Graph.from_edges(g.labels, g.edges + [(5, 6)]))
+        self.assertEqual(r.kind, "WRONG_BONDS")
+
+
 class Cleaning(unittest.TestCase):
     def test_json_in_code_fence(self):
         text = 'Đây là kết quả:\n```json\n{"cards":[{"id":1,"symbol":"H","confidence":0.9},{"id":2,"symbol":"Cl","confidence":0.9}],"connections":[[1,2]]}\n```'
