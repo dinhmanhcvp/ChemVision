@@ -41,7 +41,7 @@ SERVER_BACKED = {
     "btn-check": "/api/analyze", "btn-demo": "/api/analyze", "welcome-demo": "/api/analyze", "ch-hint": "/api/hint", "eq-check": "/api/equation",
     "eq-reveal": "/api/equation", "btn-report": "/api/report", "class-create": "/api/classroom",
     "class-open": "/api/classroom", "class-join": "/api/classroom", "class-end": "/api/classroom",
-    "ce-add": "/api/custom", "cs-add": "/api/custom", "ch-skip": "/api/classroom", "ch-end": "/api/classroom", "sg-yes": "/api/classroom", "sg-no": "/api/classroom",
+    "ce-new": "/api/custom", "ch-skip": "/api/classroom", "ch-end": "/api/classroom", "sg-yes": "/api/classroom", "sg-no": "/api/classroom",
 }
 
 def parse_functions(text):

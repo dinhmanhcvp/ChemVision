@@ -88,12 +88,14 @@ class Markers(unittest.TestCase):
     def test_no_marker_returns_none(self):
         self.assertIsNone(cards_from_markers(np.full((H, W, 3), TABLE, np.uint8)))
 
-    def test_ids_out_of_range_ignored(self):
+    def test_marker_without_label_reported_as_unlabeled_then_known_when_registered(self):
         import cv2.aruco as ar
         d = ar.getPredefinedDictionary(ar.DICT_4X4_50)
         img = np.full((H, W, 3), TABLE, np.uint8)
-        img[100:200, 100:200] = cv2.cvtColor(ar.generateImageMarker(d, 45, 100), cv2.COLOR_GRAY2BGR)   # id 45 > số nguyên tố
-        self.assertIsNone(cards_from_markers(img))
+        img[100:200, 100:200] = cv2.cvtColor(ar.generateImageMarker(d, 45, 100), cv2.COLOR_GRAY2BGR)   # id 45 > số nguyên tố in sẵn
+        card = cards_from_markers(img)["cards"][0]
+        self.assertEqual((card["symbol"], card["marker"]), ("?", 45))        # mã chưa gán nhãn
+        self.assertEqual(cards_from_markers(img, registry={45: "Pt"})["cards"][0]["symbol"], "Pt")
 
     def test_every_element_has_its_own_readable_marker(self):
         for k, sym in enumerate(CARD_ELEMENTS):

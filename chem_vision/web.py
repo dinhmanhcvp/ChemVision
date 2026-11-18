@@ -16,12 +16,12 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict, deque
 
-from .core import (BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
+from .core import (AUTO_GROUP, BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
 from .curriculum import (ATOMIC_MASS, COLORS, DECK_GRADE, DECK_STYLE, GRADE_TITLES, format_mass,
                          molecular_mass)
 from .features import (BASE_SCORE, DECKS, HINT_PENALTY, MAX_HINTS, MIN_SOLVED, WRONG_PENALTY, Challenge,
                        SessionLog, hint_for, valence_prompt)
-from .markers import cards_from_markers
+from .markers import cards_from_markers, resolve_markers
 from . import classroom, custom, reactions
 from .pedagogy import explain
 from .recognizer import MODELS, SCENARIOS, GeminiRest
@@ -93,7 +93,8 @@ def analysis_to_dict(a: Analysis, data: dict | None = None, model: str | None = 
         item = {"kind": r.kind, "cards": [str(i) for i in ids]}
         if r.substance is not None:
             item["substance"] = {"key": r.substance.key, "name": r.substance.name, "formula": r.substance.formula,
-                                 "ionic": r.substance.ionic, "grade": r.substance.grade, "mass": _mass_text(r.substance)}
+                                 "ionic": r.substance.ionic, "grade": r.substance.grade, "mass": _mass_text(r.substance),
+                                 "auto": r.substance.group == AUTO_GROUP}
         if r.same_composition:
             item["same_composition"] = [{"key": s.key, "name": s.name, "formula": s.formula} for s in r.same_composition]
         if r.kind == "SUGGEST":
@@ -161,7 +162,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
     if target is not None and target not in BY_KEY:
         return _err(400, "Chất mục tiêu không có trong cơ sở dữ liệu.")
     try:
-        custom.parse(payload.get("custom"))               # báo lỗi sớm, trước khi tốn hạn mức AI
+        registry, rows = custom.parse(payload.get("custom"))      # báo lỗi sớm, trước khi tốn hạn mức AI
     except ValueError as err:
         return _err(400, str(err))
     demo = payload.get("demo")
@@ -169,9 +170,10 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         if demo not in SCENARIOS:
             return _err(400, "Tình huống giả lập không tồn tại.")
         raw = SCENARIOS[demo]
-        with custom.applied(payload.get("custom")) as db:
-            a = analyze(raw, db)
-            out = analysis_to_dict(a, extract_json(raw), "giả lập")
+        data = resolve_markers(extract_json(raw), registry)        # thẻ mới đã gán nhãn thì demo cũng nhận ra
+        with custom.applied(rows):
+            a = analyze(data)
+            out = analysis_to_dict(a, data, "giả lập")
         if target:
             out["attempt"] = _attempt(a, target)
         return 200, out
@@ -188,7 +190,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
     frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         return _err(400, "Không giải mã được ảnh.")
-    markers = cards_from_markers(frame)
+    markers = cards_from_markers(frame, registry=registry)
     if markers:                                           # thẻ có mã đánh dấu: không cần mã truy cập hay khóa API
         raw = json.dumps(markers)
         recognizer = type("MarkerResult", (), {"last_model": "mã đánh dấu (ngoại tuyến)"})()
@@ -206,8 +208,8 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         except GaveUp as err:
             status = getattr(err.last, "status", 0)
             return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.", upstream=status)
-    with custom.applied(payload.get("custom")) as db:           # chất và nguyên tố người dùng tự thêm
-        a = analyze(raw, db)
+    with custom.applied(rows):                                  # nguyên tố người dùng tự thêm
+        a = analyze(raw)
         out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
     if target:
         out["attempt"] = _attempt(a, target)
@@ -293,12 +295,24 @@ def _class_limiter(action: str, headers) -> bool:
 
 
 def handle_custom(payload: dict) -> tuple[int, dict]:
-    """Kiểm tra chất/nguyên tố người dùng định thêm trước khi trình duyệt lưu."""
+    """Kiểm tra nguyên tố người dùng định thêm; trả về mã chưa dùng kế tiếp và ảnh mã (PNG, base64) khi xin mã mới."""
     try:
-        custom.parse(payload.get("custom"))
+        registry, rows = custom.parse(payload.get("custom"))
+    except custom.NeedMore as err:
+        return _err(400, str(err), need=err.need)
     except ValueError as err:
         return _err(400, str(err))
-    return 200, {"ok": True}
+    out = {"ok": True, "elements": [{"marker": m, "symbol": r[0], "name": r[1], "mass": r[2], "valence": r[3]}
+                                    for m, r in zip(registry, rows)]}
+    marker = payload.get("marker")                         # xin ảnh mã để in hoặc dán lên thẻ
+    if marker is not None:
+        if isinstance(marker, bool) or marker not in custom.free_markers():
+            return _err(400, "Mã không hợp lệ.")
+        import cv2
+        from .markers import marker_image
+        img = cv2.copyMakeBorder(marker_image(marker, 240), 30, 30, 30, 30, cv2.BORDER_CONSTANT, value=255)   # viền trắng để máy đọc được
+        out["image"] = base64.b64encode(cv2.imencode(".png", img)[1].tobytes()).decode("ascii")
+    return 200, out
 
 
 ROUTES = {"meta": ("GET", lambda p, env, h: handle_meta(env)),

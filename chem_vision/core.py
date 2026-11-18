@@ -12,7 +12,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field, replace
 
-from .curriculum import ATOMIC_MASS, ELEMENT_NAMES, format_mass, molecular_mass
+from .curriculum import ATOMIC_MASS, ELEMENT_NAMES, ROMAN, VALENCE, format_mass, molecular_mass
 
 MIN_CONFIDENCE = 0.6
 MAX_D = 3            # tổng thẻ thiếu + thừa tối đa của một gợi ý
@@ -294,6 +294,7 @@ class Card:
 class Cleaned:
     cards: dict
     edges: set
+    unlabeled: list = field(default_factory=list)  # số hiệu mã đánh dấu chưa được gán nguyên tố
     problems: list = field(default_factory=list)   # buộc chụp lại
     warnings: list = field(default_factory=list)   # chỉ lưu ý
 
@@ -363,6 +364,10 @@ def clean_molecule(raw) -> Cleaned:
         cid = _norm_id(item.get("id"))
         if cid in out.cards:
             out.warnings.append(f"bỏ thẻ trùng id {cid}")
+            continue
+        if item.get("symbol") == "?" and isinstance(item.get("marker"), int):
+            if item["marker"] not in out.unlabeled:
+                out.unlabeled.append(item["marker"])
             continue
         sym = normalize_symbol(item.get("symbol"))
         conf = _norm_conf(item.get("confidence"))
@@ -483,6 +488,8 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
     for s in candidates:
         if is_isomorphic(g, s.graph):
             return ClusterResult("MATCH", g, s)
+    if len(g.labels) >= 2 and any(l not in _KNOWN for l in g.labels) and all(l in VALENCE for l in g.labels):
+        return _by_valence(g)                           # có nguyên tố chưa có chất nào trong cơ sở dữ liệu: xét theo hóa trị
     contacts = _contact_edges(g)
     reduced = []                                        # thẻ lục giác quanh nguyên tử tâm chạm nhau: bỏ các cạnh chỉ là chạm
     for s in candidates:
@@ -506,6 +513,83 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
         if any(s.is_subgraph for s in alt):
             sugs = alt
     return ClusterResult("SUGGEST" if sugs else "UNKNOWN", g, suggestions=sugs, valence_warnings=warn)
+
+
+_KNOWN = {label for _s_ in DATABASE for label in _s_.graph.labels}      # nguyên tố đã có trong chất mẫu
+AUTO_GROUP = "suy ra theo hóa trị"
+
+
+def _bond_orders_exist(g: Graph) -> bool:
+    """Có cách gán bậc liên kết 1 đến 3 cho mọi cạnh để tổng bậc của mỗi nguyên tử đúng bằng một hóa trị của nó không."""
+    edges = g.edges
+    ok = [set(VALENCE[l]) for l in g.labels]
+    top = [max(v) for v in ok]
+    left = [len(g.adj[i]) for i in range(len(g.labels))]      # số cạnh chưa gán của mỗi nguyên tử
+    total = [0] * len(g.labels)
+
+    def place(k: int) -> bool:
+        if k == len(edges):
+            return True
+        a, b = edges[k]
+        for order in (1, 2, 3):
+            total[a] += order
+            total[b] += order
+            left[a] -= 1
+            left[b] -= 1
+            fine = all(total[x] <= top[x] and (left[x] > 0 or total[x] in ok[x]) for x in (a, b))
+            if fine and place(k + 1):
+                return True
+            total[a] -= order
+            total[b] -= order
+            left[a] += 1
+            left[b] += 1
+        return False
+
+    return place(0)
+
+
+def valence_problems(g: Graph) -> list[str]:
+    """Rỗng nếu cách ghép hợp lý về hóa trị; ngược lại là các lời giải thích bằng tiếng Việt (chỉ rõ thẻ nào thiếu hoặc thừa)."""
+    if _bond_orders_exist(g):
+        return []
+    top = [max(VALENCE[l]) for l in g.labels]
+    out = Counter()
+    for i, label in enumerate(g.labels):
+        deg = len(g.adj[i])
+        cap = sum(min(3, top[i], top[j]) for j in g.adj[i])        # tổng bậc lớn nhất mà các liên kết của thẻ này tạo được
+        vals = VALENCE[label]
+        roman = " hoặc ".join(ROMAN.get(v, str(v)) for v in vals)
+        if min(vals) > cap:
+            out[f"thẻ {label} có hóa trị {roman} nhưng mới nối được {deg} thẻ, còn thiếu thẻ"] += 1
+        elif max(vals) < deg:
+            out[f"thẻ {label} chỉ có hóa trị {roman} nhưng đang nối {deg} thẻ, thừa thẻ"] += 1
+        elif not any(deg <= v <= cap for v in vals):
+            out[f"thẻ {label} đang nối {deg} thẻ, không hợp với hóa trị {roman}"] += 1
+    return [m + (f" (×{n})" if n > 1 else "") for m, n in out.items()] or ["các liên kết chưa khớp hóa trị của từng nguyên tử"]
+
+
+def _auto_substance(g: Graph) -> Substance:
+    from .curriculum import _NONMETAL_ORDER
+    comp = g.composition()
+    # kim loại trước (theo chữ cái), phi kim sau theo thứ tự quy ước; có cacbon thì C, H đứng đầu
+    rank = lambda s: (0, s) if s not in _NONMETAL_ORDER else (1, _NONMETAL_ORDER.index(s))
+    order = sorted(comp, key=lambda s: ((-2, 0) if s == "C" else (-1, 0) if s == "H" else rank(s)) if "C" in comp else rank(s))
+    formula = "".join(s + (str(comp[s]) if comp[s] > 1 else "") for s in order)
+    return Substance(f"auto-{formula}", formula, "chất mới", AUTO_GROUP, g)
+
+
+def _by_valence(g: Graph) -> ClusterResult:
+    """Cụm có nguyên tố chưa có trong chất mẫu nào (vd thẻ mới thêm): đúng hay sai quyết định bằng hóa trị."""
+    problems = valence_problems(g)
+    if not problems:
+        return ClusterResult("MATCH", g, _auto_substance(g))
+    contacts = _contact_edges(g)                         # thẻ lục giác kề nhau quanh nguyên tử tâm chỉ chạm suông
+    for k in range(1, len(contacts) + 1):
+        for drop in itertools.combinations(contacts, k):
+            h = Graph.from_edges(g.labels, [e for e in g.edges if e not in drop])
+            if not valence_problems(h):
+                return ClusterResult("MATCH", h, _auto_substance(h))
+    return ClusterResult("UNKNOWN", g, valence_warnings=problems)
 
 
 def _contact_edges(g: Graph, hub_degree: int = 4, limit: int = 14) -> list[tuple[int, int]]:
@@ -569,6 +653,10 @@ def _match_extra(sub: Substance, speech: bool) -> str:
 
 
 def cluster_message(r: ClusterResult, speech: bool = False) -> str:
+    if r.kind == "MATCH" and r.substance.group == AUTO_GROUP:
+        s = r.substance
+        return (f"Cách ghép hợp lý về hóa trị: mỗi nguyên tử đều đủ liên kết, tạo thành {s.formula}."
+                + _match_extra(s, speech))
     if r.kind == "MATCH":
         return f"Cấu trúc khớp với {sub_label(r.substance, speech)}." + _match_extra(r.substance, speech)
     if r.kind == "WRONG_BONDS":
@@ -599,6 +687,8 @@ def cluster_message(r: ClusterResult, speech: bool = False) -> str:
         if r.valence_warnings and not speech:
             msg += " Lưu ý: " + "; ".join(r.valence_warnings) + "."
         return msg
+    if r.valence_warnings:
+        return "Cách ghép chưa đúng hóa trị: " + "; ".join(r.valence_warnings) + ". Hãy kiểm tra lại cách ghép."
     return "Chưa nhận ra chất nào phù hợp với cụm thẻ này. Hãy kiểm tra lại cách ghép."
 
 
@@ -620,6 +710,11 @@ def analyze(raw, db=DATABASE) -> Analysis:
     if cleaned.recapture:
         text = "Ảnh chưa đủ rõ: " + "; ".join(cleaned.problems) + ". Hãy chỉnh lại thẻ và chụp lại."
         return Analysis("RECAPTURE", cleaned, message=text, speech=_speech_of(text))
+    if cleaned.unlabeled:
+        codes = ", ".join(str(m) for m in sorted(cleaned.unlabeled))
+        text = (f"Thẻ mã {codes} chưa được gán nhãn nên chưa biết đây là chất gì. "
+                "Hãy vào thẻ Thêm, nhập tên nguyên tố cho mã này rồi kiểm tra lại.")
+        return Analysis("UNLABELED", cleaned, message=text, speech=text)
     if not cleaned.cards:
         text = "Không thấy thẻ nguyên tố nào trong ảnh."
         return Analysis("EMPTY", cleaned, message=text, speech=text)

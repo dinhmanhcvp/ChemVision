@@ -246,10 +246,15 @@ function classFor(out) {
 function verdictFor(out) {
   const cls = classFor(out);
   if (out.status === "RECAPTURE") return { cls, mood: "think", head: "Chụp lại nhé!", sub: out.message.replace(/^Ảnh chưa đủ rõ:\s*/, "").replace(/\s*Hãy chỉnh lại thẻ và chụp lại\.$/, "") + ". Chỉnh lại rồi chụp lần nữa.", speech: "Chụp lại nhé" };
+  if (out.status === "UNLABELED") return { cls, mood: "think", head: "Thẻ chưa có nhãn", sub: out.message, speech: "Thẻ này chưa được gán nhãn nên chưa biết là chất gì" };
   if (out.status === "EMPTY") return { cls, mood: "think", head: "Chưa thấy thẻ nào", sub: "Đặt thẻ vào giữa khung rồi chụp lại nhé.", speech: "Chưa thấy thẻ nào" };
   const cl = out.clusters;
   if (cl.length === 1) {
     const c = cl[0];
+    if (c.kind === "MATCH" && c.substance.auto) {            // chất có thẻ mới: đúng hay sai do hóa trị quyết định
+      const facts = c.substance.mass ? [fact("Phân tử khối " + c.substance.mass)] : [];
+      return { cls, mood: "cheer", head: "Hợp lý về hóa trị!", sub: el("span", {}, nameFormula(c.substance), document.createTextNode(": mỗi nguyên tử đều đủ liên kết theo hóa trị.")), facts, speech: "Hợp lý về hóa trị!" };
+    }
     if (c.kind === "MATCH") {
       const facts = [];
       if (c.substance.mass) facts.push(fact((c.substance.ionic ? "Khối lượng công thức " : "Phân tử khối ") + c.substance.mass));
@@ -268,6 +273,7 @@ function verdictFor(out) {
       return { cls, mood: "think", head: "Gần xong rồi!", sub: el("span", {}, document.createTextNode("Có phải bạn muốn ghép "), nameFormula(s), document.createTextNode("? " + [need && "Cần thêm " + need, extra].filter(Boolean).join("; ") + ".")),
         speech: "Gần xong rồi! Có phải bạn muốn ghép " + s.name };
     }
+    if (c.warnings && c.warnings.length) return { cls, mood: "oops", head: "Chưa đúng hóa trị", sub: c.warnings.join("; ") + ". Kiểm tra lại cách nối nhé.", speech: "Chưa đúng hóa trị" };
     return { cls, mood: "oops", head: "Chưa nhận ra chất này", sub: "Bộ thẻ này chưa tạo thành chất nào trong chương trình. Kiểm tra số thẻ và cách nối nhé.", speech: "Chưa nhận ra chất này" };
   }
   const good = cl.filter((c) => c.kind === "MATCH").length;

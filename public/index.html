@@ -219,30 +219,9 @@
           <p class="note">Dùng dữ liệu dựng sẵn, không cần camera, mã truy cập hay hạn mức API. Kết quả hiện ở thẻ Ghép thẻ.</p>
         </div>
         <div class="card" id="custom-card">
-          <h2>Chất và nguyên tố của bạn</h2>
-          <p class="note">Thêm chất hoặc nguyên tố chưa có sẵn. Dữ liệu lưu ngay trên máy này và được dùng khi kiểm tra thẻ.</p>
-          <h3>Thêm nguyên tố</h3>
-          <div class="row">
-            <input id="ce-symbol" type="text" maxlength="3" placeholder="Kí hiệu (Pt)" aria-label="Kí hiệu nguyên tố">
-            <input id="ce-name" type="text" maxlength="30" placeholder="Tên (bạch kim)" aria-label="Tên nguyên tố">
-            <input id="ce-mass" type="number" min="0.1" max="399" step="any" placeholder="Nguyên tử khối" aria-label="Nguyên tử khối">
-            <button id="ce-add" type="button" class="btn small">Thêm</button>
-          </div>
-          <h3>Thêm chất</h3>
-          <label class="field">Công thức
-            <input id="cs-formula" aria-label="Công thức chất" type="text" maxlength="30" placeholder="C2H6O">
-          </label>
-          <label class="field">Tên chất
-            <input id="cs-name" aria-label="Tên chất" type="text" maxlength="40" placeholder="dimetyl ete">
-          </label>
-          <label class="field">Các nguyên tử, cách nhau bằng dấu cách (nguyên tử đầu là số 1)
-            <input id="cs-atoms" aria-label="Các nguyên tử" type="text" maxlength="200" placeholder="C C O H H H H H H">
-          </label>
-          <label class="field">Các liên kết, theo số thứ tự nguyên tử
-            <input id="cs-bonds" aria-label="Các liên kết" type="text" maxlength="400" placeholder="1-3, 2-3, 1-4, 1-5, 1-6, 2-7, 2-8, 2-9">
-          </label>
-          <p id="cs-preview" class="note" aria-live="polite"></p>
-          <div class="row"><button id="cs-add" type="button" class="btn small">Thêm chất</button></div>
+          <h2>Thêm nguyên tố mới</h2>
+          <p class="note">Nhấn nút để nhận một mã vuông mới, in hoặc vẽ mã lên một thẻ trắng. Khi chưa đặt tên, ứng dụng báo thẻ chưa có nhãn. Đặt tên xong, thẻ ghép với các thẻ khác sẽ được xét đúng hay sai theo hóa trị, không cần khai báo từng chất.</p>
+          <div class="row"><button id="ce-new" type="button" class="btn small">Thêm nguyên tố mới</button></div>
           <p id="custom-error" class="note" role="alert"></p>
           <ul id="custom-list" class="custom-list"></ul>
         </div>

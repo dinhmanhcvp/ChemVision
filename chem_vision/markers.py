@@ -10,7 +10,8 @@ import numpy as np
 
 from .curriculum import CARD_ELEMENTS
 
-DICT_NAME = "DICT_4X4_50"     # 50 mã, đủ cho 22 nguyên tố; mã 4x4 lớn nên đọc tốt ở khoảng cách xa
+DICT_NAME = "DICT_4X4_50"
+DICT_ID_COUNT = 50           # số mã của từ điển; mã sau các nguyên tố in sẵn dành cho nguyên tố người dùng thêm     # 50 mã, đủ cho 22 nguyên tố; mã 4x4 lớn nên đọc tốt ở khoảng cách xa
 CARD_TO_MARKER = 2.2          # đối cạnh của thẻ lục giác / cạnh mã in trên thẻ (xem scripts/make_cards.py)
 LINK_RATIO = 1.3              # hai thẻ chạm nhau nếu hai tâm cách nhau không quá LINK_RATIO x kích thước thẻ
 
@@ -21,38 +22,46 @@ def _detector():
     return aruco.ArucoDetector(aruco.getPredefinedDictionary(getattr(aruco, DICT_NAME)), aruco.DetectorParameters())
 
 
-def marker_image(element: str, size: int = 200):
-    """Ảnh mã ArUco (xám) của một nguyên tố, dùng khi in thẻ."""
+def marker_image(element: str | int, size: int = 200):
+    """Ảnh mã ArUco (xám) của một nguyên tố (kí hiệu) hoặc của một số hiệu mã, dùng khi in thẻ."""
     import cv2
     aruco = cv2.aruco
     dictionary = aruco.getPredefinedDictionary(getattr(aruco, DICT_NAME))
-    return aruco.generateImageMarker(dictionary, CARD_ELEMENTS.index(element), size)
+    marker_id = element if isinstance(element, int) else CARD_ELEMENTS.index(element)
+    return aruco.generateImageMarker(dictionary, marker_id, size)
 
 
-def cards_from_markers(frame_bgr, min_cards: int = 1) -> dict | None:
-    """Đọc các mã ArUco trong ảnh. Trả về dữ liệu cùng dạng với kết quả của Gemini, hoặc None nếu không thấy mã nào hợp lệ."""
+def cards_from_markers(frame_bgr, min_cards: int = 1, registry: dict | None = None) -> dict | None:
+    """Đọc các mã ArUco trong ảnh. Trả về dữ liệu cùng dạng với kết quả của Gemini, hoặc None nếu không thấy mã nào hợp lệ.
+
+    registry: {số hiệu mã: kí hiệu} của các nguyên tố người dùng tự thêm (số hiệu từ len(CARD_ELEMENTS) trở lên).
+    Mã chưa được gán nhãn cho ra thẻ có symbol "?" và marker = số hiệu, để báo "chưa biết đây là chất gì"."""
+    registry = registry or {}
     corners, ids, _ = _detector().detectMarkers(frame_bgr)
     if ids is None:
         return None
     h, w = frame_bgr.shape[:2]
     found = []
     for quad, mid in zip(corners, ids.flatten()):
-        if not 0 <= int(mid) < len(CARD_ELEMENTS):
-            continue
+        mid = int(mid)
+        symbol = CARD_ELEMENTS[mid] if 0 <= mid < len(CARD_ELEMENTS) else registry.get(mid, "?")
         pts = quad.reshape(4, 2)
         side = float(np.mean([np.linalg.norm(pts[i] - pts[(i + 1) % 4]) for i in range(4)]))
         centre = pts.mean(axis=0).astype(float)
-        found.append((CARD_ELEMENTS[int(mid)], centre, side * CARD_TO_MARKER))
+        found.append((symbol, mid, centre, side * CARD_TO_MARKER))
     if len(found) < min_cards:
         return None
     # sắp xếp từ trái sang phải, trên xuống dưới để số thứ tự thẻ ổn định giữa các lần chụp
-    found.sort(key=lambda f: (round(f[1][1] / max(f[2], 1)), f[1][0]))
+    found.sort(key=lambda f: (round(f[2][1] / max(f[3], 1)), f[2][0]))
     cards, centres = [], []
-    for i, (symbol, c, card) in enumerate(found, 1):
+    for i, (symbol, mid, c, card) in enumerate(found, 1):
         half = card * 0.58
         box = [max(0.0, (c[1] - half) / h * 1000), max(0.0, (c[0] - half) / w * 1000),
                min(1000.0, (c[1] + half) / h * 1000), min(1000.0, (c[0] + half) / w * 1000)]
-        cards.append({"id": i, "symbol": symbol, "confidence": 1.0, "box_2d": [round(float(v), 1) for v in box]})
+        item = {"id": i, "symbol": symbol, "confidence": 1.0, "box_2d": [round(float(v), 1) for v in box]}
+        if symbol == "?":
+            item["marker"] = mid
+        cards.append(item)
         centres.append((c, card))
     links = []
     for i in range(len(centres)):
@@ -61,3 +70,10 @@ def cards_from_markers(frame_bgr, min_cards: int = 1) -> dict | None:
             if float(np.linalg.norm(ci - cj)) <= LINK_RATIO * (si + sj) / 2:
                 links.append({"a": i + 1, "b": j + 1})
     return {"cards": cards, "connections": links, "links_source": "markers"}
+
+
+def resolve_markers(data: dict, registry: dict) -> dict:
+    """Điền kí hiệu cho thẻ có mã đã được gán nhãn (dùng cho kết quả dựng sẵn); mã chưa gán giữ nguyên "?"."""
+    cards = [{**c, "symbol": registry[c["marker"]]} if c.get("symbol") == "?" and c.get("marker") in registry else c
+             for c in data.get("cards", [])]
+    return {**data, "cards": cards}
