@@ -22,7 +22,7 @@ from .curriculum import (ATOMIC_MASS, COLORS, DECK_GRADE, DECK_STYLE, GRADE_TITL
 from .features import (BASE_SCORE, DECKS, HINT_PENALTY, MAX_HINTS, MIN_SOLVED, WRONG_PENALTY, Challenge,
                        SessionLog, hint_for, valence_prompt)
 from .markers import cards_from_markers
-from . import classroom, reactions
+from . import classroom, custom, reactions
 from .pedagogy import explain
 from .recognizer import MODELS, SCENARIOS, GeminiRest
 from .retry import GaveUp
@@ -160,13 +160,18 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
     target = payload.get("target")
     if target is not None and target not in BY_KEY:
         return _err(400, "Chất mục tiêu không có trong cơ sở dữ liệu.")
+    try:
+        custom.parse(payload.get("custom"))               # báo lỗi sớm, trước khi tốn hạn mức AI
+    except ValueError as err:
+        return _err(400, str(err))
     demo = payload.get("demo")
     if demo is not None:                                  # chạy thử: không gọi AI, không tốn hạn mức
         if demo not in SCENARIOS:
             return _err(400, "Tình huống giả lập không tồn tại.")
         raw = SCENARIOS[demo]
-        a = analyze(raw)
-        out = analysis_to_dict(a, extract_json(raw), "giả lập")
+        with custom.applied(payload.get("custom")) as db:
+            a = analyze(raw, db)
+            out = analysis_to_dict(a, extract_json(raw), "giả lập")
         if target:
             out["attempt"] = _attempt(a, target)
         return 200, out
@@ -201,8 +206,9 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         except GaveUp as err:
             status = getattr(err.last, "status", 0)
             return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.", upstream=status)
-    a = analyze(raw)
-    out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
+    with custom.applied(payload.get("custom")) as db:           # chất và nguyên tố người dùng tự thêm
+        a = analyze(raw, db)
+        out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
     if target:
         out["attempt"] = _attempt(a, target)
     return 200, out
@@ -286,9 +292,19 @@ def _class_limiter(action: str, headers) -> bool:
     return rate_limited(f"{action}:{client_ip(headers)}", limit=classroom.RATE[action])
 
 
+def handle_custom(payload: dict) -> tuple[int, dict]:
+    """Kiểm tra chất/nguyên tố người dùng định thêm trước khi trình duyệt lưu."""
+    try:
+        custom.parse(payload.get("custom"))
+    except ValueError as err:
+        return _err(400, str(err))
+    return 200, {"ok": True}
+
+
 ROUTES = {"meta": ("GET", lambda p, env, h: handle_meta(env)),
           "classroom": ("POST", lambda p, env, h: classroom.handle(p, env, h, limiter=_class_limiter)),
           "analyze": ("POST", lambda p, env, h: handle_analyze(p, env, h)),
+          "custom": ("POST", lambda p, env, h: handle_custom(p)),
           "hint": ("POST", lambda p, env, h: handle_hint(p)),
           "equation": ("POST", lambda p, env, h: handle_equation(p)),
           "tts": ("POST", lambda p, env, h: handle_tts(p, h)),

@@ -478,7 +478,8 @@ def suggest(g: Graph, db=DATABASE) -> list[Suggestion]:
 
 
 def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
-    candidates = [s for s in BY_SIGNATURE.get(g.signature(), []) if s in db]
+    sig = g.signature()
+    candidates = [s for s in BY_SIGNATURE.get(sig, []) if s in db] if db is DATABASE else         [s for s in db if s.graph.signature() == sig]
     for s in candidates:
         if is_isomorphic(g, s.graph):
             return ClusterResult("MATCH", g, s)

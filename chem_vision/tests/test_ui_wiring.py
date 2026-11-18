@@ -14,7 +14,7 @@ def read(name):
 
 
 HTML, CSS = read("index.html"), read("style.css")
-JS = read("app.js") + "\n" + read("ui.js") + "\n" + read("progress.js")
+JS = read("app.js") + "\n" + read("ui.js") + "\n" + read("progress.js") + "\n" + read("custom.js")
 VIEWS = ["ghep", "thuthach", "canbang", "lop", "them"]
 
 # Nút chỉ chạy trong trình duyệt (không có dữ liệu để máy chủ xử lý): lí do ghi rõ để người sau không phải đoán
@@ -41,7 +41,7 @@ SERVER_BACKED = {
     "btn-check": "/api/analyze", "btn-demo": "/api/analyze", "welcome-demo": "/api/analyze", "ch-hint": "/api/hint", "eq-check": "/api/equation",
     "eq-reveal": "/api/equation", "btn-report": "/api/report", "class-create": "/api/classroom",
     "class-open": "/api/classroom", "class-join": "/api/classroom", "class-end": "/api/classroom",
-    "ch-skip": "/api/classroom", "ch-end": "/api/classroom", "sg-yes": "/api/classroom", "sg-no": "/api/classroom",
+    "ce-add": "/api/custom", "cs-add": "/api/custom", "ch-skip": "/api/classroom", "ch-end": "/api/classroom", "sg-yes": "/api/classroom", "sg-no": "/api/classroom",
 }
 
 def parse_functions(text):

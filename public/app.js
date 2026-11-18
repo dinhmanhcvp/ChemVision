@@ -1,5 +1,6 @@
 import { $, el, icon, formulaNode, elementChip, setMood, confetti, sfx, toast } from "/ui.js";
 import * as progress from "/progress.js";
+import { getCustom, initCustom } from "/custom.js";
 
 const LOG_KEY = "cv_logs";
 const CODE_KEY = "cv_code";
@@ -171,6 +172,7 @@ async function init() {
   renderDecks();
   renderBadges();
   initClassroom();
+  initCustom(api);
 }
 
 /* ------------------------------------------------------------------ sao, huy hiệu */
@@ -520,6 +522,8 @@ async function analyze(payload, withOverlay) {
   hideSuggest();
   const task = challenge && currentTask();
   if (task) payload.target = task.key;
+  const extra = getCustom();            // chất và nguyên tố người dùng tự thêm
+  if (extra) payload.custom = extra;
   try {
     const { status, json } = await api("/api/analyze", payload);
     if (status !== 200 || !json.ok) {
