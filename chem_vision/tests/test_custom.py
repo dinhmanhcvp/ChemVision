@@ -64,6 +64,27 @@ class Elements(unittest.TestCase):
         self.assertEqual(found["cards"][0]["marker"], 25)
 
 
+class PeriodicTable(unittest.TestCase):
+    def test_every_element_has_data_and_is_not_preloaded(self):
+        from chem_vision.core import ELEMENTS
+        from chem_vision.curriculum import CARD_ELEMENTS
+        from chem_vision.periodic import EXTRA, lookup
+        self.assertEqual(set(EXTRA) | set(CARD_ELEMENTS), ELEMENTS)                 # đủ 118 nguyên tố, không thiếu không thừa
+        self.assertFalse(set(EXTRA) & set(CARD_ELEMENTS))
+        self.assertEqual(len({v[0] for v in EXTRA.values()}), len(EXTRA))            # tên tiếng Việt không trùng
+        for sym, (vi, en, mass, valence) in EXTRA.items():
+            self.assertEqual(lookup(vi)[0], sym, sym)
+            self.assertEqual(lookup(en)[0], sym, sym)
+            self.assertTrue(valence and all(0 <= v <= 8 for v in valence) and mass > 0, sym)
+            custom.parse({"elements": [{"marker": 22, "name": vi}]})                 # chỉ cần tên là thêm được
+        self.assertNotIn("Ti", VALENCE)                                              # tra cứu không tự thêm nguyên tố vào ứng dụng
+
+    def test_names_ignore_case_and_accents(self):
+        from chem_vision.periodic import lookup
+        self.assertEqual(lookup("BACH KIM")[0], "Pt")
+        self.assertEqual(lookup("Gold")[0], "Au")
+
+
 class Flow(unittest.TestCase):
     """Câu chuyện ban đầu: thẻ chưa gán nhãn -> chưa biết là gì; đặt tên xong -> tự biết ghép đúng hay sai."""
 
