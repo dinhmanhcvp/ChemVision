@@ -31,12 +31,13 @@ def marker_image(element: str | int, size: int = 200):
     return aruco.generateImageMarker(dictionary, marker_id, size)
 
 
-def cards_from_markers(frame_bgr, min_cards: int = 1, registry: dict | None = None) -> dict | None:
+def cards_from_markers(frame_bgr, min_cards: int = 1, registry: dict | None = None, off: set | None = None) -> dict | None:
     """Đọc các mã ArUco trong ảnh. Trả về dữ liệu cùng dạng với kết quả của Gemini, hoặc None nếu không thấy mã nào hợp lệ.
 
     registry: {số hiệu mã: kí hiệu} của các nguyên tố người dùng tự thêm (số hiệu từ len(CARD_ELEMENTS) trở lên).
+    off: số hiệu mã của nguyên tố in sẵn đã bị xóa (coi như chưa gán nhãn).
     Mã chưa được gán nhãn cho ra thẻ có symbol "?" và marker = số hiệu, để báo "chưa biết đây là chất gì"."""
-    registry = registry or {}
+    registry, off = registry or {}, off or set()
     corners, ids, _ = _detector().detectMarkers(frame_bgr)
     if ids is None:
         return None
@@ -44,7 +45,7 @@ def cards_from_markers(frame_bgr, min_cards: int = 1, registry: dict | None = No
     found = []
     for quad, mid in zip(corners, ids.flatten()):
         mid = int(mid)
-        symbol = CARD_ELEMENTS[mid] if 0 <= mid < len(CARD_ELEMENTS) else registry.get(mid, "?")
+        symbol = "?" if mid in off else CARD_ELEMENTS[mid] if 0 <= mid < len(CARD_ELEMENTS) else registry.get(mid, "?")
         pts = quad.reshape(4, 2)
         side = float(np.mean([np.linalg.norm(pts[i] - pts[(i + 1) % 4]) for i in range(4)]))
         centre = pts.mean(axis=0).astype(float)
@@ -72,8 +73,14 @@ def cards_from_markers(frame_bgr, min_cards: int = 1, registry: dict | None = No
     return {"cards": cards, "connections": links, "links_source": "markers"}
 
 
-def resolve_markers(data: dict, registry: dict) -> dict:
-    """Điền kí hiệu cho thẻ có mã đã được gán nhãn (dùng cho kết quả dựng sẵn); mã chưa gán giữ nguyên "?"."""
-    cards = [{**c, "symbol": registry[c["marker"]]} if c.get("symbol") == "?" and c.get("marker") in registry else c
-             for c in data.get("cards", [])]
+def resolve_markers(data: dict, registry: dict, off: set | None = None) -> dict:
+    """Áp dụng nguyên tố đã thêm và đã xóa cho kết quả dựng sẵn: mã đã gán nhãn có kí hiệu, nguyên tố đã xóa thành "?" kèm số hiệu mã."""
+    gone = {CARD_ELEMENTS[m]: m for m in (off or ())}
+    cards = []
+    for c in data.get("cards", []):
+        if c.get("symbol") == "?" and c.get("marker") in registry:
+            c = {**c, "symbol": registry[c["marker"]]}
+        elif c.get("symbol") in gone:
+            c = {**c, "symbol": "?", "marker": gone[c["symbol"]]}
+        cards.append(c)
     return {**data, "cards": cards}

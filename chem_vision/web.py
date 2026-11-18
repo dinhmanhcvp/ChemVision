@@ -17,11 +17,12 @@ import urllib.request
 from collections import Counter, defaultdict, deque
 
 from .core import (AUTO_GROUP, BY_KEY, DATABASE, ELEMENT_NAMES, Analysis, analyze, describe_structure, extract_json)
-from .curriculum import (ATOMIC_MASS, COLORS, DECK_GRADE, DECK_STYLE, GRADE_TITLES, format_mass,
+from .curriculum import (ATOMIC_MASS, CARD_ELEMENTS, COLORS, ROMAN, VALENCE, DECK_GRADE, DECK_STYLE, GRADE_TITLES, format_mass,
                          molecular_mass)
 from .features import (BASE_SCORE, DECKS, HINT_PENALTY, MAX_HINTS, MIN_SOLVED, WRONG_PENALTY, Challenge,
                        SessionLog, hint_for, valence_prompt)
 from .markers import cards_from_markers, resolve_markers
+from .periodic import compounds
 from . import classroom, custom, reactions
 from .pedagogy import explain
 from .recognizer import MODELS, SCENARIOS, GeminiRest
@@ -144,9 +145,8 @@ def handle_meta(env=None) -> tuple[int, dict]:
         "scoring": {"base": BASE_SCORE, "wrong": WRONG_PENALTY, "hint": HINT_PENALTY, "min": MIN_SOLVED,
                     "max_hints": MAX_HINTS},
         "substances": len(DATABASE),
-        "catalog": [{"key": s.key, "formula": s.formula, "name": s.name, "group": s.group, "grade": s.grade,
-                     "mass": _mass_text(s), "cards": ", ".join(f"{n} {sym}" for sym, n in s.graph.composition().items()),
-                     "structure": describe_structure(s.graph)} for s in DATABASE],
+        "catalog": [{"marker": i, "symbol": sym, "name": ELEMENT_NAMES.get(sym, ""), "mass": format_mass(ATOMIC_MASS[sym]) if sym in ATOMIC_MASS else "",
+                     "valence": [ROMAN[v] for v in VALENCE.get(sym, [])]} for i, sym in enumerate(CARD_ELEMENTS)],
         "equations": [{"id": i, "reactants": r, "products": p} for i, (r, p) in enumerate(reactions.EQUATIONS)],
         "models": list(MODELS),
         "elements": ELEMENT_NAMES,
@@ -166,7 +166,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         return _err(400, "Chất mục tiêu không có trong cơ sở dữ liệu.")
     try:
         registry, rows = custom.parse(payload.get("custom"))      # báo lỗi sớm, trước khi tốn hạn mức AI
-        db = custom.database(payload.get("custom"))
+        off = custom.off(payload.get("custom"))
     except ValueError as err:
         return _err(400, str(err))
     demo = payload.get("demo")
@@ -174,9 +174,9 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         if demo not in SCENARIOS:
             return _err(400, "Tình huống giả lập không tồn tại.")
         raw = SCENARIOS[demo]
-        data = resolve_markers(extract_json(raw), registry)        # thẻ mới đã gán nhãn thì demo cũng nhận ra
+        data = resolve_markers(extract_json(raw), registry, off)        # thẻ mới đã gán nhãn thì demo cũng nhận ra
         with custom.applied(rows):
-            a = analyze(data, db)
+            a = analyze(data)
             out = analysis_to_dict(a, data, "giả lập")
         if target:
             out["attempt"] = _attempt(a, target)
@@ -194,7 +194,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
     frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         return _err(400, "Không giải mã được ảnh.")
-    markers = cards_from_markers(frame, registry=registry)
+    markers = cards_from_markers(frame, registry=registry, off=off)
     if markers:                                           # thẻ có mã đánh dấu: không cần mã truy cập hay khóa API
         raw = json.dumps(markers)
         recognizer = type("MarkerResult", (), {"last_model": "mã đánh dấu (ngoại tuyến)"})()
@@ -212,8 +212,10 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         except GaveUp as err:
             status = getattr(err.last, "status", 0)
             return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.", upstream=status)
+    if off:                                               # nguyên tố đã xóa cũng không nhận ra khi AI đọc kí hiệu
+        raw = json.dumps(resolve_markers(extract_json(raw) or {}, registry, off))
     with custom.applied(rows):                                  # nguyên tố người dùng tự thêm
-        a = analyze(raw, db)
+        a = analyze(raw)
         out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
     if target:
         out["attempt"] = _attempt(a, target)
@@ -302,13 +304,13 @@ def handle_custom(payload: dict) -> tuple[int, dict]:
     """Kiểm tra nguyên tố người dùng định thêm; trả về mã chưa dùng kế tiếp và ảnh mã (PNG, base64) khi xin mã mới."""
     try:
         registry, rows = custom.parse(payload.get("custom"))
-        custom.database(payload.get("custom"))
+        custom.off(payload.get("custom"))
     except custom.NeedMore as err:
         return _err(400, str(err), need=err.need)
     except ValueError as err:
         return _err(400, str(err))
-    out = {"ok": True, "elements": [{"marker": m, "symbol": r[0], "name": r[1], "mass": r[2], "valence": r[3]}
-                                    for m, r in zip(registry, rows)]}
+    out = {"ok": True, "elements": [{"marker": m, "symbol": r[0], "name": r[1], "mass": r[2], "valence": r[3],
+                                     "compounds": compounds(r[0], r[3])} for m, r in zip(registry, rows)]}
     marker = payload.get("marker")                         # xin ảnh mã để in hoặc dán lên thẻ
     if marker is not None:
         if isinstance(marker, bool) or marker not in custom.free_markers():

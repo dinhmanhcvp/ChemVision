@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 
-from .core import BY_KEY, DATABASE, ELEMENTS, ELEMENT_NAMES
+from .core import ELEMENTS, ELEMENT_NAMES
 from .curriculum import ATOMIC_MASS, CARD_ELEMENTS, VALENCE
 from .markers import DICT_ID_COUNT
 from .periodic import lookup
@@ -72,14 +72,14 @@ def parse(custom) -> tuple[dict, list]:
     return registry, rows
 
 
-def database(custom) -> tuple:
-    """Cơ sở dữ liệu dùng cho lượt này: bỏ các chất người dùng đã xóa khỏi nhận diện (để thử nhận diện trước và sau khi thêm lại)."""
-    off = custom.get("disabled") if isinstance(custom, dict) else None
-    if not off:
-        return DATABASE
-    if not isinstance(off, list) or not all(isinstance(k, str) and k in BY_KEY for k in off):
-        raise ValueError("Danh sách chất đã xóa không hợp lệ.")
-    return tuple(s for s in DATABASE if s.key not in off)
+def off(custom) -> set:
+    """Số hiệu mã của các nguyên tố in sẵn mà người dùng đã xóa (thẻ của chúng thành "chưa gán nhãn" cho đến khi thêm lại)."""
+    value = custom.get("off") if isinstance(custom, dict) else None
+    if not value:
+        return set()
+    if not isinstance(value, list) or not all(isinstance(m, int) and not isinstance(m, bool) and 0 <= m < len(CARD_ELEMENTS) for m in value):
+        raise ValueError("Danh sách nguyên tố đã xóa không hợp lệ.")
+    return set(value)
 
 
 @contextmanager

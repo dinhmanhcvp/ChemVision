@@ -132,3 +132,27 @@ def lookup(text: str):
         if key in (_fold(sym), _fold(name), _fold(english)):
             return sym, name, mass, list(valence)
     return None
+
+
+PARTNERS = ["H", "O", "Cl", "F", "Br", "I", "S", "N", "C"]      # các nguyên tố có sẵn thường gặp nhất để lập hợp chất
+
+
+def compounds(symbol: str, valences: list[int], limit: int = 12) -> list[dict]:
+    """Hợp chất hai nguyên tố mà nguyên tố mới tạo được với các nguyên tố có sẵn theo quy tắc hóa trị (quy tắc chéo).
+    Mỗi mục: công thức và số thẻ cần dùng. Dùng để thấy ngay nguyên tố mới tự có liên kết với các nguyên tố cũ."""
+    from math import gcd
+    out, seen = [], set()
+    for vx in valences:
+        if vx <= 0:
+            continue
+        for partner in PARTNERS:
+            if partner == symbol:
+                continue
+            for vp in VALENCE.get(partner, [])[:2]:
+                g = gcd(vx, vp)
+                nx, np_ = vp // g, vx // g
+                formula = symbol + (str(nx) if nx > 1 else "") + partner + (str(np_) if np_ > 1 else "")
+                if formula not in seen:
+                    seen.add(formula)
+                    out.append({"formula": formula, "cards": f"{nx} {symbol}, {np_} {partner}"})
+    return out[:limit]

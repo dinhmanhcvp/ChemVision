@@ -1,6 +1,6 @@
 /* Nguyên tố người dùng tự thêm: nhận một mã vuông, đặt tên là xong (hóa trị, nguyên tử khối tra từ bảng).
    Lưu trong trình duyệt, gửi kèm mỗi lượt kiểm tra (xem chem_vision/custom.py). */
-import { $, el, formulaNode, toast } from "/ui.js";
+import { $, el, toast } from "/ui.js";
 
 const KEY = "cv_custom";
 const FIRST_MARKER = 22, MARKER_COUNT = 50;      // phải khớp len(CARD_ELEMENTS) và DICT_ID_COUNT ở máy chủ
@@ -9,18 +9,18 @@ let api = null;
 function load() {
   try {
     const v = JSON.parse(localStorage.getItem(KEY));
-    return { elements: Array.isArray(v?.elements) ? v.elements : [], disabled: Array.isArray(v?.disabled) ? v.disabled : [] };
-  } catch (e) { return { elements: [], disabled: [] }; }
+    return { elements: Array.isArray(v?.elements) ? v.elements : [], off: Array.isArray(v?.off) ? v.off : [] };
+  } catch (e) { return { elements: [], off: [] }; }
 }
 function save(c) { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) { /* trình duyệt chặn lưu */ } }
 
 const named = (c) => c.elements.filter((e) => e.name).map(({ marker, name, symbol, valence }) => ({ marker, name, symbol, valence }));
 
-/* gửi kèm yêu cầu kiểm tra; undefined khi chưa thêm nguyên tố hay xóa chất nào */
+/* gửi kèm yêu cầu kiểm tra; undefined khi chưa thêm hay xóa nguyên tố nào */
 export function getCustom() {
   const c = load();
   const elements = named(c);
-  return elements.length || c.disabled.length ? { elements, disabled: c.disabled } : undefined;
+  return elements.length || c.off.length ? { elements, off: c.off } : undefined;
 }
 
 const ROMAN = ["0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
@@ -35,6 +35,10 @@ function render() {
     const body = el("div", {}, head);
     if (e.name) {
       body.append(el("div", { className: "note", textContent: "Hóa trị " + e.valence.map((v) => ROMAN[v]).join(", ") }));
+      if (e.compounds && e.compounds.length) {         // tự có liên kết với các nguyên tố có sẵn theo hóa trị
+        body.append(el("div", { className: "note", textContent: "Ghép được với các nguyên tố có sẵn:" }),
+          el("div", { className: "chips" }, ...e.compounds.map((c) => el("span", { className: "chip", textContent: c.formula, title: "Thẻ cần dùng: " + c.cards }))));
+      }
     } else {
       const name = el("input", { type: "text", maxLength: 30, placeholder: "Tên nguyên tố (bạch kim)", ariaLabel: `Tên nguyên tố cho mã ${e.marker}` });
       const symbol = el("input", { type: "text", maxLength: 3, placeholder: "Kí hiệu (Pt)", ariaLabel: "Kí hiệu nguyên tố", hidden: true });
@@ -86,48 +90,47 @@ async function saveName(marker, nameBox, symbolBox, valenceBox) {
     return;
   }
   const got = json.elements.find((x) => x.marker === marker);
-  Object.assign(e, { name: trial.name, symbol: got.symbol, valence: got.valence });
+  Object.assign(e, { name: trial.name, symbol: got.symbol, valence: got.valence, compounds: got.compounds });
   $("custom-error").textContent = "";
   save(c);
   render();
   toast(`Mã ${marker} là ${got.symbol}. Dùng được ngay khi kiểm tra.`);
 }
 
-/* bảng các chất hiện có: xóa một chất khỏi nhận diện rồi thêm lại để thấy nhận diện đổi theo */
+/* bảng các nguyên tố hiện có: xóa một nguyên tố rồi thêm lại để thấy nhận diện đổi theo */
 let catalog = [];
 
 function renderCatalog() {
-  const off = new Set(load().disabled);
+  const off = new Set(load().off);
   const q = $("catalog-filter").value.trim().toLowerCase();
   const body = $("catalog-table").tBodies[0];
   body.replaceChildren();
   let shown = 0;
-  catalog.forEach((s, i) => {
-    if (q && !(s.formula + " " + s.name).toLowerCase().includes(q)) return;
+  for (const e of catalog) {
+    if (q && !(e.symbol + " " + e.name).toLowerCase().includes(q)) continue;
     shown++;
-    const gone = off.has(s.key);
+    const gone = off.has(e.marker);
     const cls = gone ? "off" : "";
     body.append(el("tr", {},
-      el("td", { textContent: String(i + 1), className: cls }), el("td", { className: cls }, formulaNode(s.formula)),
-      el("td", { textContent: s.name, className: cls }), el("td", { textContent: String(s.grade), className: cls }),
-      el("td", { textContent: s.mass || "", className: cls }), el("td", { textContent: s.cards, className: cls }),
-      el("td", { textContent: s.structure, className: cls }),
+      el("td", { textContent: String(e.marker), className: cls }), el("td", { textContent: e.symbol, className: cls }),
+      el("td", { textContent: e.name, className: cls }), el("td", { textContent: e.mass, className: cls }),
+      el("td", { textContent: e.valence.join(", "), className: cls }),
       el("td", {}, el("button", { type: "button", className: "btn small" + (gone ? "" : " ghost"), textContent: gone ? "Thêm lại" : "Xóa",
-        onclick: () => toggleSubstance(s.key) }))));
-  });
-  $("catalog-count").textContent = `${shown} chất` + (off.size ? `, ${off.size} chất đã xóa khỏi nhận diện` : "");
+        onclick: () => toggleElement(e.marker) }))));
+  }
+  $("catalog-count").textContent = `${shown} nguyên tố` + (off.size ? `, ${off.size} đã xóa khỏi nhận diện` : "");
 }
 
-function toggleSubstance(key) {
+function toggleElement(marker) {
   const c = load();
-  c.disabled = c.disabled.includes(key) ? c.disabled.filter((k) => k !== key) : [...c.disabled, key];
+  c.off = c.off.includes(marker) ? c.off.filter((m) => m !== marker) : [...c.off, marker];
   save(c);
   renderCatalog();
 }
 
-export function initCustom(apiFn, substances) {
+export function initCustom(apiFn, elements) {
   api = apiFn;
-  catalog = substances || [];
+  catalog = elements || [];
   $("ce-new").addEventListener("click", addDraft);
   $("catalog-filter").addEventListener("input", renderCatalog);
   render();

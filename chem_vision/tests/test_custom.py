@@ -86,31 +86,50 @@ class PeriodicTable(unittest.TestCase):
 
 
 class Catalog(unittest.TestCase):
-    """Bảng chất hiện có: xóa một chất thì không nhận ra, thêm lại thì nhận ra như cũ."""
+    """Bảng nguyên tố hiện có: xóa một nguyên tố thì thẻ của nó không nhận ra, thêm lại thì nhận ra như cũ."""
 
-    def kind(self, disabled):
-        status, body = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"disabled": disabled}}, {}, {})
+    def result(self, off):
+        status, body = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"off": off}}, {}, {})
         self.assertEqual(status, 200, body)
-        return body["clusters"][0]["kind"]
+        return body
 
     def test_remove_then_add_back(self):
-        self.assertEqual(self.kind([]), "MATCH")
-        self.assertNotEqual(self.kind(["H2O"]), "MATCH")
-        self.assertEqual(self.kind([]), "MATCH")                      # thêm lại = bỏ khỏi danh sách đã xóa
+        from chem_vision.curriculum import CARD_ELEMENTS
+        h = CARD_ELEMENTS.index("H")
+        self.assertEqual(self.result([])["clusters"][0]["kind"], "MATCH")
+        gone = self.result([h])
+        self.assertEqual(gone["status"], "UNLABELED")
+        self.assertIn(str(h), gone["message"])
+        self.assertEqual(self.result([])["clusters"][0]["kind"], "MATCH")          # thêm lại = bỏ khỏi danh sách đã xóa
 
-    def test_removing_one_isomer_does_not_hide_the_other(self):
-        from chem_vision.web import handle_analyze as analyze_demo
-        status, body = analyze_demo({"demo": "Đimetyl ete", "custom": {"disabled": ["C2H5OH"]}}, {}, {})
-        self.assertEqual(body["clusters"][0]["substance"]["formula"], "CH3OCH3")
+    def test_unrelated_element_removal_changes_nothing(self):
+        from chem_vision.curriculum import CARD_ELEMENTS
+        self.assertEqual(self.result([CARD_ELEMENTS.index("Cl")])["clusters"][0]["kind"], "MATCH")
 
-    def test_unknown_key_rejected_and_catalog_in_meta(self):
-        status, _ = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"disabled": ["khong-co"]}}, {}, {})
-        self.assertEqual(status, 400)
-        from chem_vision.core import DATABASE
+    def test_marker_of_removed_element_is_unlabeled_in_photos(self):
+        from chem_vision.curriculum import CARD_ELEMENTS
+        h = CARD_ELEMENTS.index("H")
+        img = np.full((300, 300, 3), 200, np.uint8)
+        img[50:250, 50:250] = cv2.cvtColor(marker_image("H", 200), cv2.COLOR_GRAY2BGR)
+        self.assertEqual(cards_from_markers(img)["cards"][0]["symbol"], "H")
+        self.assertEqual(cards_from_markers(img, off={h})["cards"][0]["marker"], h)
+
+    def test_bad_off_rejected_and_catalog_in_meta(self):
+        for bad in (["x"], [99], [True], "H"):
+            status, _ = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"off": bad}}, {}, {})
+            self.assertEqual(status, 400, bad)
+        from chem_vision.curriculum import CARD_ELEMENTS
         from chem_vision.web import handle_meta
         catalog = handle_meta()[1]["catalog"]
-        self.assertEqual([c["key"] for c in catalog], [s.key for s in DATABASE])
-        self.assertTrue(all(c["formula"] and c["name"] and c["cards"] and c["structure"] for c in catalog))
+        self.assertEqual([c["symbol"] for c in catalog], CARD_ELEMENTS)
+        self.assertTrue(all(c["name"] and c["mass"] and c["valence"] for c in catalog))
+
+    def test_new_element_lists_compounds_with_existing_elements(self):
+        status, body = handle_custom({"custom": {"elements": [{"marker": 22, "name": "titan"}]}})
+        formulas = {c["formula"]: c["cards"] for c in body["elements"][0]["compounds"]}
+        self.assertEqual(formulas["TiCl4"], "1 Ti, 4 Cl")
+        self.assertEqual(formulas["TiO2"], "1 Ti, 2 O")
+        self.assertEqual(formulas["TiH4"], "1 Ti, 4 H")
 
     def test_blank_cards_pdf_exists_and_markers_readable(self):
         path = os.path.join(os.path.dirname(__file__), "..", "..", "public", "the-in", "the-trong.pdf")

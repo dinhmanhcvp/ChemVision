@@ -61,7 +61,7 @@ def instructions(first: int, last: int) -> Image.Image:
         "4. Trước khi đặt tên: ghép thẻ vào camera, ứng dụng báo thẻ chưa có nhãn nên chưa biết đây là chất gì.",
         "5. Gõ tên nguyên tố (ví dụ titan) rồi nhấn Lưu tên. Ứng dụng tự tra nguyên tử khối và hóa trị.",
         "6. Ghép thẻ vừa đặt tên với các thẻ khác: ứng dụng tự báo cách ghép đúng hay sai theo hóa trị, không cần khai báo chất.",
-        "7. Muốn thử nhận diện chất có sẵn: vào mục Các chất hiện có, nhấn Xóa một chất, ghép chất đó thì không nhận ra; nhấn Thêm lại thì nhận ra như cũ.",
+        "7. Muốn thử với nguyên tố có sẵn: vào mục Các nguyên tố hiện có, nhấn Xóa một nguyên tố (ví dụ Cl). Thẻ Cl in sẵn sẽ báo chưa có nhãn; nhấn Thêm lại thì nhận ra như cũ.",
     ]
     for s in steps:
         for part in mc.wrap(s, 88):

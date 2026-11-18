@@ -717,7 +717,7 @@ def analyze(raw, db=DATABASE) -> Analysis:
     if cleaned.unlabeled:
         codes = ", ".join(str(m) for m in sorted(cleaned.unlabeled))
         text = (f"Thẻ mã {codes} chưa được gán nhãn nên chưa biết đây là chất gì. "
-                "Hãy vào thẻ Thêm, nhập tên nguyên tố cho mã này rồi kiểm tra lại.")
+                "Hãy vào thẻ Thêm, thêm nguyên tố cho mã này (nhập tên, hoặc nhấn Thêm lại trong bảng nguyên tố) rồi kiểm tra lại.")
         return Analysis("UNLABELED", cleaned, message=text, speech=text)
     if not cleaned.cards:
         text = "Không thấy thẻ nguyên tố nào trong ảnh."
