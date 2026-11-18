@@ -144,6 +144,9 @@ def handle_meta(env=None) -> tuple[int, dict]:
         "scoring": {"base": BASE_SCORE, "wrong": WRONG_PENALTY, "hint": HINT_PENALTY, "min": MIN_SOLVED,
                     "max_hints": MAX_HINTS},
         "substances": len(DATABASE),
+        "catalog": [{"key": s.key, "formula": s.formula, "name": s.name, "group": s.group, "grade": s.grade,
+                     "mass": _mass_text(s), "cards": ", ".join(f"{n} {sym}" for sym, n in s.graph.composition().items()),
+                     "structure": describe_structure(s.graph)} for s in DATABASE],
         "equations": [{"id": i, "reactants": r, "products": p} for i, (r, p) in enumerate(reactions.EQUATIONS)],
         "models": list(MODELS),
         "elements": ELEMENT_NAMES,
@@ -163,6 +166,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         return _err(400, "Chất mục tiêu không có trong cơ sở dữ liệu.")
     try:
         registry, rows = custom.parse(payload.get("custom"))      # báo lỗi sớm, trước khi tốn hạn mức AI
+        db = custom.database(payload.get("custom"))
     except ValueError as err:
         return _err(400, str(err))
     demo = payload.get("demo")
@@ -172,7 +176,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
         raw = SCENARIOS[demo]
         data = resolve_markers(extract_json(raw), registry)        # thẻ mới đã gán nhãn thì demo cũng nhận ra
         with custom.applied(rows):
-            a = analyze(data)
+            a = analyze(data, db)
             out = analysis_to_dict(a, data, "giả lập")
         if target:
             out["attempt"] = _attempt(a, target)
@@ -209,7 +213,7 @@ def handle_analyze(payload: dict, env, headers, recognizer=None, now: float | No
             status = getattr(err.last, "status", 0)
             return _err(502, "Không kết nối được dịch vụ AI. Kiểm tra khóa API và thử lại.", upstream=status)
     with custom.applied(rows):                                  # nguyên tố người dùng tự thêm
-        a = analyze(raw)
+        a = analyze(raw, db)
         out = analysis_to_dict(a, extract_json(raw), getattr(recognizer, "last_model", None))
     if target:
         out["attempt"] = _attempt(a, target)
@@ -298,6 +302,7 @@ def handle_custom(payload: dict) -> tuple[int, dict]:
     """Kiểm tra nguyên tố người dùng định thêm; trả về mã chưa dùng kế tiếp và ảnh mã (PNG, base64) khi xin mã mới."""
     try:
         registry, rows = custom.parse(payload.get("custom"))
+        custom.database(payload.get("custom"))
     except custom.NeedMore as err:
         return _err(400, str(err), need=err.need)
     except ValueError as err:

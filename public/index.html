@@ -221,9 +221,19 @@
         <div class="card" id="custom-card">
           <h2>Thêm nguyên tố mới</h2>
           <p class="note">Nhấn nút để nhận một mã vuông mới, in hoặc vẽ mã lên một thẻ trắng. Khi chưa đặt tên, ứng dụng báo thẻ chưa có nhãn. Đặt tên xong, thẻ ghép với các thẻ khác sẽ được xét đúng hay sai theo hóa trị, không cần khai báo từng chất.</p>
-          <div class="row"><button id="ce-new" type="button" class="btn small">Thêm nguyên tố mới</button></div>
+          <div class="row">
+            <input id="ce-code" type="number" min="22" max="49" placeholder="Mã trên thẻ (tùy chọn)" aria-label="Mã vuông đã in sẵn trên thẻ trống, để trống thì nhận mã mới">
+            <button id="ce-new" type="button" class="btn small">Thêm nguyên tố mới</button>
+          </div>
+          <p class="note"><a href="/the-in/the-trong.pdf" download>Tải thẻ trống để in</a>: mỗi thẻ có sẵn một mã vuông (22 trở đi), viết tên nguyên tố lên thẻ rồi nhập mã tương ứng ở đây.</p>
           <p id="custom-error" class="note" role="alert"></p>
           <ul id="custom-list" class="custom-list"></ul>
+        </div>
+        <div class="card wide" id="catalog-card">
+          <h2>Các chất hiện có</h2>
+          <p class="note">Nhấn "Xóa" để bỏ một chất khỏi nhận diện (chỉ trên máy này): ghép đúng chất đó thì ứng dụng sẽ không nhận ra. Nhấn "Thêm lại" thì nhận ra như cũ.</p>
+          <div class="row"><input id="catalog-filter" type="text" maxlength="30" placeholder="Lọc theo công thức hoặc tên" aria-label="Lọc bảng chất"><span id="catalog-count" class="note"></span></div>
+          <div class="table-wrap"><table id="catalog-table"><thead><tr><th>STT</th><th>Công thức</th><th>Tên chất</th><th>Lớp</th><th>PTK</th><th>Thẻ cần dùng</th><th>Cách ghép (thẻ nào chạm thẻ nào)</th><th>Nhận diện</th></tr></thead><tbody></tbody></table></div>
         </div>
         <div class="card">
           <h2>In bộ thẻ</h2>

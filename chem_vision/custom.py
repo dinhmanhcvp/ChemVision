@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 
-from .core import ELEMENTS, ELEMENT_NAMES
+from .core import BY_KEY, DATABASE, ELEMENTS, ELEMENT_NAMES
 from .curriculum import ATOMIC_MASS, CARD_ELEMENTS, VALENCE
 from .markers import DICT_ID_COUNT
 from .periodic import lookup
@@ -59,7 +59,7 @@ def parse(custom) -> tuple[dict, list]:
     """Kiểm tra danh sách nguyên tố đã đặt tên. Trả về ({mã: kí hiệu}, [(kí hiệu, tên, nguyên tử khối, hóa trị)]); sai thì ném ValueError."""
     if not custom:
         return {}, []
-    entries = custom.get("elements") if isinstance(custom, dict) else None
+    entries = (custom.get("elements") or []) if isinstance(custom, dict) else None
     if not isinstance(entries, list) or len(entries) > MAX_ELEMENTS:
         raise ValueError(f"Chỉ thêm tối đa {MAX_ELEMENTS} nguyên tố.")
     registry, rows = {}, []
@@ -70,6 +70,16 @@ def parse(custom) -> tuple[dict, list]:
         registry[marker] = symbol
         rows.append((symbol, name, mass, valence))
     return registry, rows
+
+
+def database(custom) -> tuple:
+    """Cơ sở dữ liệu dùng cho lượt này: bỏ các chất người dùng đã xóa khỏi nhận diện (để thử nhận diện trước và sau khi thêm lại)."""
+    off = custom.get("disabled") if isinstance(custom, dict) else None
+    if not off:
+        return DATABASE
+    if not isinstance(off, list) or not all(isinstance(k, str) and k in BY_KEY for k in off):
+        raise ValueError("Danh sách chất đã xóa không hợp lệ.")
+    return tuple(s for s in DATABASE if s.key not in off)
 
 
 @contextmanager

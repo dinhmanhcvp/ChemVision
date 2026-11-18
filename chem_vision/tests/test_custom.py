@@ -85,6 +85,43 @@ class PeriodicTable(unittest.TestCase):
         self.assertEqual(lookup("Gold")[0], "Au")
 
 
+class Catalog(unittest.TestCase):
+    """Bảng chất hiện có: xóa một chất thì không nhận ra, thêm lại thì nhận ra như cũ."""
+
+    def kind(self, disabled):
+        status, body = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"disabled": disabled}}, {}, {})
+        self.assertEqual(status, 200, body)
+        return body["clusters"][0]["kind"]
+
+    def test_remove_then_add_back(self):
+        self.assertEqual(self.kind([]), "MATCH")
+        self.assertNotEqual(self.kind(["H2O"]), "MATCH")
+        self.assertEqual(self.kind([]), "MATCH")                      # thêm lại = bỏ khỏi danh sách đã xóa
+
+    def test_removing_one_isomer_does_not_hide_the_other(self):
+        from chem_vision.web import handle_analyze as analyze_demo
+        status, body = analyze_demo({"demo": "Đimetyl ete", "custom": {"disabled": ["C2H5OH"]}}, {}, {})
+        self.assertEqual(body["clusters"][0]["substance"]["formula"], "CH3OCH3")
+
+    def test_unknown_key_rejected_and_catalog_in_meta(self):
+        status, _ = handle_analyze({"demo": "Nước, ghép đúng", "custom": {"disabled": ["khong-co"]}}, {}, {})
+        self.assertEqual(status, 400)
+        from chem_vision.core import DATABASE
+        from chem_vision.web import handle_meta
+        catalog = handle_meta()[1]["catalog"]
+        self.assertEqual([c["key"] for c in catalog], [s.key for s in DATABASE])
+        self.assertTrue(all(c["formula"] and c["name"] and c["cards"] and c["structure"] for c in catalog))
+
+    def test_blank_cards_pdf_exists_and_markers_readable(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "public", "the-in", "the-trong.pdf")
+        self.assertTrue(os.path.getsize(path) > 10_000)
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+        import make_the_trong
+        img = cv2.cvtColor(np.array(make_the_trong.sheet(list(range(22, 34)))), cv2.COLOR_RGB2BGR)
+        cards = cards_from_markers(img)["cards"]
+        self.assertEqual(sorted(c["marker"] for c in cards), list(range(22, 34)))
+
+
 class Flow(unittest.TestCase):
     """Câu chuyện ban đầu: thẻ chưa gán nhãn -> chưa biết là gì; đặt tên xong -> tự biết ghép đúng hay sai."""
 

@@ -490,24 +490,16 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
             return ClusterResult("MATCH", g, s)
     if len(g.labels) >= 2 and any(l not in _KNOWN for l in g.labels) and all(l in VALENCE for l in g.labels):
         return _by_valence(g)                           # có nguyên tố chưa có chất nào trong cơ sở dữ liệu: xét theo hóa trị
-    contacts = _contact_edges(g)
-    reduced = []                                        # thẻ lục giác quanh nguyên tử tâm chạm nhau: bỏ các cạnh chỉ là chạm
-    for s in candidates:
-        k = len(g.edges) - len(s.graph.edges)           # số cạnh phải bỏ để đủ số liên kết của chất mẫu
-        for drop in itertools.combinations(contacts, k) if 0 < k <= len(contacts) else ():
-            h = Graph.from_edges(g.labels, [e for e in g.edges if e not in drop])
-            if is_isomorphic(h, s.graph):
-                # ưu tiên bỏ cạnh chạm giữa các thẻ nhẹ (H) trước: liên kết giữa hai nguyên tử nặng ít khi là chạm suông
-                reduced.append((sum(g.labels[i] != "H" for e in drop for i in e), h, s))
-    if reduced:
-        _, h, s = min(reduced, key=lambda r: r[0])
-        return ClusterResult("MATCH", h, s)
+    kept = _spanning_match(g, candidates)               # thẻ lục giác kề nhau chạm suông: bỏ cạnh thừa mà vẫn ra đúng chất
+    if kept is not None:
+        return ClusterResult("MATCH", g, kept)
     warn = valence_warnings(g)
     if candidates:
         best = min(candidates, key=lambda s: (_shape_diff(g, s.graph), sum(_sum_diff(g, s.graph))))
         extra, missing = _bond_diff(g, best.graph)
         return ClusterResult("WRONG_BONDS", g, best, candidates, extra, missing, valence_warnings=warn)
     sugs = suggest(g, db)
+    contacts = [(u, v) for u, v in g.edges if g.adj[u] & g.adj[v]]      # cạnh khép tam giác: thường chỉ là hai thẻ chạm nhau
     if contacts and not any(s.is_subgraph for s in sugs):       # cụm chưa đủ thẻ: thử lại khi bỏ hết các cạnh chỉ là chạm
         alt = suggest(Graph.from_edges(g.labels, [e for e in g.edges if e not in contacts]), db)
         if any(s.is_subgraph for s in alt):
@@ -517,6 +509,15 @@ def match_cluster(g: Graph, db=DATABASE) -> ClusterResult:
 
 _KNOWN = {label for _s_ in DATABASE for label in _s_.graph.labels}      # nguyên tố đã có trong chất mẫu
 AUTO_GROUP = "suy ra theo hóa trị"
+
+
+def _connected(g: Graph) -> bool:
+    seen, stack = {0}, [0]
+    while stack:
+        for v in g.adj[stack.pop()] - seen:
+            seen.add(v)
+            stack.append(v)
+    return len(seen) == len(g.labels)
 
 
 def _bond_orders_exist(g: Graph) -> bool:
@@ -583,22 +584,25 @@ def _by_valence(g: Graph) -> ClusterResult:
     problems = valence_problems(g)
     if not problems:
         return ClusterResult("MATCH", g, _auto_substance(g))
-    contacts = _contact_edges(g)                         # thẻ lục giác kề nhau quanh nguyên tử tâm chỉ chạm suông
-    for k in range(1, len(contacts) + 1):
-        for drop in itertools.combinations(contacts, k):
-            h = Graph.from_edges(g.labels, [e for e in g.edges if e not in drop])
-            if not valence_problems(h):
+    edges = g.edges                                      # thẻ lục giác kề nhau chỉ chạm suông: thử bỏ ít cạnh nhất cho hợp hóa trị
+    for k in range(1, min(len(edges), 6) + 1):
+        for drop in itertools.combinations(edges, k) if len(edges) <= 24 else ():
+            h = Graph.from_edges(g.labels, [e for e in edges if e not in drop])
+            if _connected(h) and not valence_problems(h):
                 return ClusterResult("MATCH", h, _auto_substance(h))
     return ClusterResult("UNKNOWN", g, valence_warnings=problems)
 
 
-def _contact_edges(g: Graph, hub_degree: int = 4, limit: int = 14) -> list[tuple[int, int]]:
-    """Cạnh (u, v) mà u và v cùng nối với một nguyên tử tâm có từ 4 thẻ chạm trở lên (H2SO4, CH4...).
-    Thẻ lục giác quanh thẻ tâm kề sát nhau nên hình học luôn báo chúng chạm; hai thẻ đó thường không có liên kết thật."""
-    out = [(u, v) for u, v in g.edges if any(len(g.adj[w]) >= hub_degree for w in g.adj[u] & g.adj[v])]
-    return out if len(out) <= limit else []
-
-
+def _spanning_match(g: Graph, candidates) -> Substance | None:
+    """Thẻ là hình lục giác nên hai thẻ cùng ở rìa một thẻ khác thường chạm nhau dù không liên kết (H–H quanh C, O–O quanh S...).
+    Cụm khớp chất s nếu mọi liên kết của s đều có mặt (cùng số nguyên tử) và các cạnh còn lại chỉ là chạm suông.
+    Chọn chất cần bỏ ít cạnh nhất; cạnh thừa không bao giờ làm thiếu liên kết: thiếu liên kết vẫn bị báo sai."""
+    best = None
+    for s in candidates:
+        extra = len(g.edges) - len(s.graph.edges)
+        if extra > 0 and (best is None or extra < best[0]) and is_subgraph(s.graph, g):
+            best = (extra, s)
+    return best[1] if best else None
 
 
 def _shape_diff(g: Graph, ref: Graph) -> int:

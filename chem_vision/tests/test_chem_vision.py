@@ -198,26 +198,34 @@ class Isomers(unittest.TestCase):
         self.assertEqual(match_cluster(Graph.from_edges(g.labels, es)).substance.key, "CH3OCH3")
 
 
-class HexContacts(unittest.TestCase):
-    """Thẻ lục giác quanh nguyên tử tâm (4 thẻ trở lên) kề sát nhau: cạnh chạm suông không được tính là liên kết."""
+def g_formula(key):
+    return BY_KEY[key].formula
 
-    def test_touching_neighbours_of_hub_still_match(self):
+
+class HexContacts(unittest.TestCase):
+    """Thẻ lục giác kề sát nhau: hai thẻ ở rìa một thẻ tâm chạm suông không được tính là liên kết.
+    Giới hạn: dimetyl ete và etanol có thể ngang nhau khi cả hai cạnh chạm C–C và O–H cùng xuất hiện (đồ thị không đủ để phân biệt)."""
+
+    def test_extra_touching_edges_still_match(self):
         import itertools
         from chem_vision.core import match_cluster
-        for key in ("H2SO4", "H3PO4", "CH4", "Na2SO4", "CH3OH", "CH3COOH", "C2H5OH", "CH3OCH3", "C2H6", "C3H8"):
+        for key in ("H2O", "H2S", "NH3", "H2SO4", "H3PO4", "CH4", "Na2SO4", "CH3OH", "CH3COOH", "C2H5OH", "CH3OCH3", "C2H6", "C3H8", "C6H6"):
             g = BY_KEY[key].graph
-            hubs = [w for w in range(len(g.labels)) if len(g.adj[w]) >= 4]
-            pairs = sorted({(u, v) for w in hubs for u, v in itertools.combinations(sorted(g.adj[w]), 2) if v not in g.adj[u]})
-            for k in range(1, min(len(pairs), 3) + 1):
-                for extra in itertools.islice(itertools.combinations(pairs, k), 30):
+            have = {frozenset(e) for e in g.edges}
+            pairs = sorted((u, v) for u, v in itertools.combinations(range(len(g.labels)), 2)
+                           if frozenset((u, v)) not in have and g.adj[u] & g.adj[v])      # hai thẻ cùng nối một thẻ khác
+            for k in range(1, 4):
+                # nhiều cạnh chạm cùng lúc chỉ thử với các thẻ quanh một tâm đủ 4 thẻ: ở nơi khác, hai cách đọc có thể ngang nhau (xem docstring)
+                hubs = [p for p in pairs if any(p[0] in g.adj[w] and p[1] in g.adj[w] and len(g.adj[w]) >= 4 for w in range(len(g.labels)))]
+                for extra in itertools.islice(itertools.combinations(pairs if k == 1 else hubs, k), 25):
                     r = match_cluster(Graph.from_edges(g.labels, g.edges + list(extra)))
-                    self.assertEqual((r.kind, r.substance.key), ("MATCH", key), (key, extra))
+                    self.assertEqual((r.kind, r.substance.formula), ("MATCH", g_formula(key)), (key, extra))
 
-    def test_real_wrong_bond_still_reported(self):
+    def test_missing_required_bond_still_reported(self):
         from chem_vision.core import match_cluster
-        g = BY_KEY["H2SO4"].graph       # liên kết H–H giữa hai nguyên tử không chung tâm: vẫn phải báo sai
-        r = match_cluster(Graph.from_edges(g.labels, g.edges + [(5, 6)]))
-        self.assertEqual(r.kind, "WRONG_BONDS")
+        g = BY_KEY["H2SO4"].graph       # thiếu liên kết S–O (O nối sang O khác): cạnh chạm thừa không bù được liên kết thiếu
+        es = [e for e in g.edges if e != (0, 1)] + [(1, 2)]
+        self.assertEqual(match_cluster(Graph.from_edges(g.labels, es)).kind, "WRONG_BONDS")
 
 
 class Cleaning(unittest.TestCase):

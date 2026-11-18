@@ -172,7 +172,7 @@ async function init() {
   renderDecks();
   renderBadges();
   initClassroom();
-  initCustom(api);
+  initCustom(api, meta.catalog);
 }
 
 /* ------------------------------------------------------------------ sao, huy hiệu */

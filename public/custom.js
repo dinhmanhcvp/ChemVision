@@ -1,6 +1,6 @@
 /* Nguyên tố người dùng tự thêm: nhận một mã vuông, đặt tên là xong (hóa trị, nguyên tử khối tra từ bảng).
    Lưu trong trình duyệt, gửi kèm mỗi lượt kiểm tra (xem chem_vision/custom.py). */
-import { $, el, toast } from "/ui.js";
+import { $, el, formulaNode, toast } from "/ui.js";
 
 const KEY = "cv_custom";
 const FIRST_MARKER = 22, MARKER_COUNT = 50;      // phải khớp len(CARD_ELEMENTS) và DICT_ID_COUNT ở máy chủ
@@ -9,17 +9,18 @@ let api = null;
 function load() {
   try {
     const v = JSON.parse(localStorage.getItem(KEY));
-    return { elements: Array.isArray(v?.elements) ? v.elements : [] };
-  } catch (e) { return { elements: [] }; }
+    return { elements: Array.isArray(v?.elements) ? v.elements : [], disabled: Array.isArray(v?.disabled) ? v.disabled : [] };
+  } catch (e) { return { elements: [], disabled: [] }; }
 }
 function save(c) { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) { /* trình duyệt chặn lưu */ } }
 
 const named = (c) => c.elements.filter((e) => e.name).map(({ marker, name, symbol, valence }) => ({ marker, name, symbol, valence }));
 
-/* gửi kèm yêu cầu kiểm tra; undefined khi chưa có nguyên tố nào được đặt tên */
+/* gửi kèm yêu cầu kiểm tra; undefined khi chưa thêm nguyên tố hay xóa chất nào */
 export function getCustom() {
-  const list = named(load());
-  return list.length ? { elements: list } : undefined;
+  const c = load();
+  const elements = named(c);
+  return elements.length || c.disabled.length ? { elements, disabled: c.disabled } : undefined;
 }
 
 const ROMAN = ["0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
@@ -55,14 +56,18 @@ function remove(marker) {
   render();
 }
 
-/* nhận mã chưa dùng kế tiếp và ảnh mã từ máy chủ */
+/* nhận mã (số người dùng nhập theo thẻ đã in, hoặc mã chưa dùng kế tiếp) và ảnh mã từ máy chủ */
 async function addDraft() {
   const c = load();
-  const marker = Array.from({ length: MARKER_COUNT - FIRST_MARKER }, (_, i) => FIRST_MARKER + i).find((m) => !c.elements.some((e) => e.marker === m));
+  const free = (m) => Number.isInteger(m) && m >= FIRST_MARKER && m < MARKER_COUNT && !c.elements.some((e) => e.marker === m);
+  const typed = $("ce-code").value.trim();
+  const marker = typed ? Number(typed) : Array.from({ length: MARKER_COUNT - FIRST_MARKER }, (_, i) => FIRST_MARKER + i).find(free);
   if (marker === undefined) { $("custom-error").textContent = "Đã hết mã. Hãy xóa bớt nguyên tố cũ."; return; }
+  if (!free(marker)) { $("custom-error").textContent = `Mã phải là số từ ${FIRST_MARKER} đến ${MARKER_COUNT - 1} và chưa được dùng.`; return; }
   const { status, json } = await api("/api/custom", { marker });
   if (status !== 200 || !json.ok) { $("custom-error").textContent = json.error || "Không lấy được mã."; return; }
   $("custom-error").textContent = "";
+  $("ce-code").value = "";
   c.elements.push({ marker, png: json.image });
   save(c);
   render();
@@ -88,8 +93,43 @@ async function saveName(marker, nameBox, symbolBox, valenceBox) {
   toast(`Mã ${marker} là ${got.symbol}. Dùng được ngay khi kiểm tra.`);
 }
 
-export function initCustom(apiFn) {
+/* bảng các chất hiện có: xóa một chất khỏi nhận diện rồi thêm lại để thấy nhận diện đổi theo */
+let catalog = [];
+
+function renderCatalog() {
+  const off = new Set(load().disabled);
+  const q = $("catalog-filter").value.trim().toLowerCase();
+  const body = $("catalog-table").tBodies[0];
+  body.replaceChildren();
+  let shown = 0;
+  catalog.forEach((s, i) => {
+    if (q && !(s.formula + " " + s.name).toLowerCase().includes(q)) return;
+    shown++;
+    const gone = off.has(s.key);
+    const cls = gone ? "off" : "";
+    body.append(el("tr", {},
+      el("td", { textContent: String(i + 1), className: cls }), el("td", { className: cls }, formulaNode(s.formula)),
+      el("td", { textContent: s.name, className: cls }), el("td", { textContent: String(s.grade), className: cls }),
+      el("td", { textContent: s.mass || "", className: cls }), el("td", { textContent: s.cards, className: cls }),
+      el("td", { textContent: s.structure, className: cls }),
+      el("td", {}, el("button", { type: "button", className: "btn small" + (gone ? "" : " ghost"), textContent: gone ? "Thêm lại" : "Xóa",
+        onclick: () => toggleSubstance(s.key) }))));
+  });
+  $("catalog-count").textContent = `${shown} chất` + (off.size ? `, ${off.size} chất đã xóa khỏi nhận diện` : "");
+}
+
+function toggleSubstance(key) {
+  const c = load();
+  c.disabled = c.disabled.includes(key) ? c.disabled.filter((k) => k !== key) : [...c.disabled, key];
+  save(c);
+  renderCatalog();
+}
+
+export function initCustom(apiFn, substances) {
   api = apiFn;
+  catalog = substances || [];
   $("ce-new").addEventListener("click", addDraft);
+  $("catalog-filter").addEventListener("input", renderCatalog);
   render();
+  renderCatalog();
 }
